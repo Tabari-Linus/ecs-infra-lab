@@ -497,9 +497,10 @@ Resources:
         - Arn: !GetAtt ECSPipeline.Arn
           RoleArn: !GetAtt EventBridgeRole.Arn
           Id: PipelineTrigger
-    Tags:
-      - Key: Name
-        Value: ECR-Push-Rule
+      Tags:
+        - Key: Name
+          Value: ECR-Push-Rule
+
 
   # CodePipeline
   ECSPipeline:
