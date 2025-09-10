@@ -489,7 +489,7 @@ Resources:
           action-type:
             - PUSH
           repository-name:
-            - !Ref ECRRepo.RepositoryName
+            - !Ref ECRRepo
           image-tag:
             - latest
       State: ENABLED
