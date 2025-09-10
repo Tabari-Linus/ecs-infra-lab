@@ -49,7 +49,7 @@ Resources:
     Properties:
       VpcId: !Ref ECSVPC
       CidrBlock: 10.0.3.0/24
-      AvailabilityZone: !Select [0, !GetAZs !Ref Region]  # eu-central-1a
+      AvailabilityZone: !Select [0, !GetAZs '']  # eu-central-1a
       Tags:
         - Key: Name
           Value: Private-Subnet-1a
@@ -59,7 +59,7 @@ Resources:
     Properties:
       VpcId: !Ref ECSVPC
       CidrBlock: 10.0.4.0/24
-      AvailabilityZone: !Select [1, !GetAZs !Ref Region]  # eu-central-1b
+      AvailabilityZone: !Select [1, !GetAZs '']  # eu-central-1b
       Tags:
         - Key: Name
           Value: Private-Subnet-1b
