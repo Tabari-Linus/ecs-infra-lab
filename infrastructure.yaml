@@ -522,7 +522,7 @@ Resources:
                 Version: '1'
               Configuration:
                 ImageTag: latest
-                RepositoryName: !Ref ECRRepo.RepositoryName
+                RepositoryName: !Ref ECRRepo
               OutputArtifacts:
                 - Name: SourceOutput
         - Name: Deploy
