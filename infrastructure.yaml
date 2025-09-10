@@ -298,6 +298,10 @@ Resources:
   # ECS Service (Multi-AZ, ALB integration, CodeDeploy)
   ECSService:
     Type: AWS::ECS::Service
+    DependsOn:
+      - ALB
+      - ALBTargetGroup
+      - ALBListener
     Properties:
       Cluster: !Ref ECSCluster
       ServiceName: LabService
@@ -342,6 +346,7 @@ Resources:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
       VpcId: !Ref ECSVPC
+      Name: Lab-TargetGroup
       Port: 8080
       Protocol: HTTP
       TargetType: ip  # Fargate
@@ -352,6 +357,8 @@ Resources:
       Tags:
         - Key: Name
           Value: Lab-TG
+    DependsOn:
+      - ECSVPC
 
   ALBListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
@@ -362,6 +369,9 @@ Resources:
       DefaultActions:
         - Type: forward
           TargetGroupArn: !Ref ALBTargetGroup
+    DependsOn:
+      - ALB
+      - ALBTargetGroup
 
   # S3 for Artifacts
   ArtifactBucket:
