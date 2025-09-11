@@ -451,7 +451,7 @@ Resources:
       DeploymentStyle:
         DeploymentType: BLUE_GREEN
         DeploymentOption: WITH_TRAFFIC_CONTROL
-      EcsServices:
+      ECSServices:
         - ClusterName: !Ref ECSCluster
           ServiceName: !Ref ECSService
       LoadBalancerInfo:
