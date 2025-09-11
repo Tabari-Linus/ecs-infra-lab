@@ -441,8 +441,8 @@ Resources:
       DeploymentGroupName: LabDeploymentGroup
       ServiceRoleArn: !GetAtt CodeDeployRole.Arn
       BlueGreenDeploymentConfiguration:
-        DeployFleetProvisioningOption:
-          ProvisioningType: RECREATE_OR_UPDATE  # Cost-effective
+        GreenFleetProvisioningOption:
+          Action: DISCOVER_EXISTING
         DeploymentReadyOption:
           ActionOnTimeout: CONTINUE_DEPLOYMENT
         TerminateBlueInstancesOnDeploymentSuccess:
