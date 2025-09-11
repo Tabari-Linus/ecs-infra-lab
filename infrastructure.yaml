@@ -515,7 +515,7 @@ Resources:
             Statement:
               - Effect: Allow
                 Action: codepipeline:StartPipelineExecution
-                Resource: !GetAtt ECSPipeline.Arn
+                Resource: !Ref ECSPipeline
       Tags:
         - Key: Name
           Value: EventBridge-Role
