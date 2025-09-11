@@ -486,13 +486,13 @@ Resources:
             pre_build:
               commands:
                 - echo "Preparing appspec and updated taskdef"
-                - echo "AWS account: $AWS_ACCOUNT_ID, region: $AWS_DEFAULT_REGION"
+                - echo "AWS account:$AWS_ACCOUNT_ID, region:$AWS_DEFAULT_REGION"
             build:
               commands:
+                - IMAGE_URI="$AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/java-app-repo:latest"
+                - echo "Image URI:$IMAGE_URI"
                 - |
-                  IMAGE_URI="$AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/java-app-repo:latest"
-                  echo "Image URI: $IMAGE_URI"
-                  cat > appspec.yaml <<'EOF'
+                  cat > appspec.yaml << EOF
                   version: 0.0
                   Resources:
                     - TargetService:
@@ -503,15 +503,16 @@ Resources:
                             ContainerName: "app-container"
                             ContainerPort: 8080
                   EOF
-                  cat > taskdef.json <<'EOF'
+                - |
+                  cat > taskdef.json << EOF
                   {
                     "family": "lab-task",
                     "networkMode": "awsvpc",
                     "requiresCompatibilities": ["FARGATE"],
                     "cpu": "256",
                     "memory": "512",
-                    "executionRoleArn": "${ECS_EXEC_ROLE_ARN}",
-                    "taskRoleArn": "${ECS_TASK_ROLE_ARN}",
+                    "executionRoleArn": "$ECS_EXEC_ROLE_ARN",
+                    "taskRoleArn": "$ECS_TASK_ROLE_ARN",
                     "containerDefinitions": [
                       {
                         "name": "app-container",
@@ -529,7 +530,7 @@ Resources:
                     ]
                   }
                   EOF
-                  zip -r appspec_artifact.zip appspec.yaml taskdef.json
+                - zip -r appspec_artifact.zip appspec.yaml taskdef.json
           artifacts:
             files:
               - appspec_artifact.zip
