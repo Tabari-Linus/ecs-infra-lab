@@ -530,10 +530,12 @@ Resources:
                     ]
                   }
                   EOF
-                - zip -r appspec_artifact.zip appspec.yaml taskdef.json
+                - echo "Created appspec.yaml and taskdef.json files"
+                - ls -la
           artifacts:
             files:
-              - appspec_artifact.zip
+              - appspec.yaml
+              - taskdef.json
       Environment:
         Type: LINUX_CONTAINER
         ComputeType: BUILD_GENERAL1_SMALL
