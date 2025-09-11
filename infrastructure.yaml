@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: ECS CICD Lab Infrastructure in eu-central-1 with HA NAT Gateways
+Description: ECS CICD Lab Infrastructure in eu-central-1 with HA NAT Gateways (Option 1 pipeline)
 
 Parameters:
   VpcCidr:
@@ -10,7 +10,7 @@ Parameters:
     Default: eu-central-1
 
 Resources:
-  # ECSVPC
+  # VPC
   ECSVPC:
     Type: AWS::EC2::VPC
     Properties:
@@ -21,13 +21,13 @@ Resources:
         - Key: Name
           Value: ECS-Lab-VPC
 
-  # Subnets (Public and Private in two AZs)
+  # Subnets (2 AZs)
   PublicSubnet1:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref ECSVPC
       CidrBlock: 10.0.1.0/24
-      AvailabilityZone: !Select [0, !GetAZs '']  # eu-central-1a
+      AvailabilityZone: !Select [0, !GetAZs '']
       MapPublicIpOnLaunch: true
       Tags:
         - Key: Name
@@ -38,7 +38,7 @@ Resources:
     Properties:
       VpcId: !Ref ECSVPC
       CidrBlock: 10.0.2.0/24
-      AvailabilityZone: !Select [1, !GetAZs '']  # eu-central-1b
+      AvailabilityZone: !Select [1, !GetAZs '']
       MapPublicIpOnLaunch: true
       Tags:
         - Key: Name
@@ -49,7 +49,7 @@ Resources:
     Properties:
       VpcId: !Ref ECSVPC
       CidrBlock: 10.0.3.0/24
-      AvailabilityZone: !Select [0, !GetAZs '']  # eu-central-1a
+      AvailabilityZone: !Select [0, !GetAZs '']
       Tags:
         - Key: Name
           Value: Private-Subnet-1a
@@ -59,7 +59,7 @@ Resources:
     Properties:
       VpcId: !Ref ECSVPC
       CidrBlock: 10.0.4.0/24
-      AvailabilityZone: !Select [1, !GetAZs '']  # eu-central-1b
+      AvailabilityZone: !Select [1, !GetAZs '']
       Tags:
         - Key: Name
           Value: Private-Subnet-1b
@@ -78,7 +78,7 @@ Resources:
       VpcId: !Ref ECSVPC
       InternetGatewayId: !Ref InternetGateway
 
-  # NAT Gateways (one per AZ for HA)
+  # NAT Gateways (HA)
   NatGatewayEIP1:
     Type: AWS::EC2::EIP
     DependsOn: AttachGateway
@@ -115,7 +115,7 @@ Resources:
         - Key: Name
           Value: Nat-GW-1b
 
-  # Route Tables
+  # Route tables
   PublicRouteTable:
     Type: AWS::EC2::RouteTable
     Properties:
@@ -185,6 +185,7 @@ Resources:
       SubnetId: !Ref PrivateSubnet2
       RouteTableId: !Ref PrivateRouteTable2
 
+  # Security Groups
   ALBSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -216,19 +217,19 @@ Resources:
         - Key: Name
           Value: ECS-SG
 
-  # ECR
+  # ECR repository
   ECRRepo:
     Type: AWS::ECR::Repository
     Properties:
       RepositoryName: java-app-repo
       ImageTagMutability: MUTABLE
       ImageScanningConfiguration:
-        ScanOnPush: true  # Security best practice
+        ScanOnPush: true
       Tags:
         - Key: Name
           Value: Lab-ECR
 
-  # ECS Cluster and Roles
+  # ECS cluster & roles
   ECSCluster:
     Type: AWS::ECS::Cluster
     Properties:
@@ -263,12 +264,12 @@ Resources:
             Principal:
               Service: ecs-tasks.amazonaws.com
             Action: sts:AssumeRole
-      Policies: []  # Empty for now; add if app needs AWS SDK
+      Policies: []
       Tags:
         - Key: Name
           Value: ECS-Task-Role
 
-  # Task Definition (Initial; pipeline will update)
+  # Task definition (initial)
   TaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
@@ -278,8 +279,8 @@ Resources:
         - FARGATE
       Cpu: 256
       Memory: 512
-      ExecutionRoleArn: !Ref ECSExecutionRole
-      TaskRoleArn: !Ref ECSTaskRole
+      ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
+      TaskRoleArn: !GetAtt ECSTaskRole.Arn
       ContainerDefinitions:
         - Name: app-container
           Image: !Sub "${AWS::AccountId}.dkr.ecr.eu-central-1.amazonaws.com/java-app-repo:latest"
@@ -295,18 +296,16 @@ Resources:
         - Key: Name
           Value: Lab-TaskDef
 
-  # ECS Service (Multi-AZ, ALB integration, CodeDeploy)
+  # ECS Service (uses CodeDeploy controller)
   ECSService:
     Type: AWS::ECS::Service
     DependsOn:
-      - ALB
-      - ALBTargetGroup
       - ALBListener
     Properties:
       Cluster: !Ref ECSCluster
       ServiceName: LabService
       TaskDefinition: !Ref TaskDefinition
-      DesiredCount: 2  # HA: Min 2 tasks across AZs
+      DesiredCount: 2
       LaunchType: FARGATE
       NetworkConfiguration:
         AwsvpcConfiguration:
@@ -315,7 +314,7 @@ Resources:
             - !Ref PrivateSubnet2
           SecurityGroups:
             - !Ref ECSSecurityGroup
-          AssignPublicIp: DISABLED  # Security
+          AssignPublicIp: DISABLED
       LoadBalancers:
         - ContainerName: app-container
           ContainerPort: 8080
@@ -342,14 +341,16 @@ Resources:
         - Key: Name
           Value: Lab-ALB
 
+  # Target groups: Blue (for service) and Green (for CodeDeploy)
   ALBTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    DependsOn: ALB
     Properties:
       VpcId: !Ref ECSVPC
       Name: Lab-TargetGroup-Blue
       Port: 8080
       Protocol: HTTP
-      TargetType: ip # Fargate requires 'ip'
+      TargetType: ip
       HealthCheckPath: /
       HealthCheckIntervalSeconds: 30
       HealthyThresholdCount: 2
@@ -357,17 +358,16 @@ Resources:
       Tags:
         - Key: Name
           Value: Lab-TG-Blue
-    DependsOn:
-      - ECSVPC
-  
+
   ALBTargetGroupGreen:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    DependsOn: ALB
     Properties:
       VpcId: !Ref ECSVPC
       Name: Lab-TargetGroup-Green
       Port: 8080
       Protocol: HTTP
-      TargetType: ip # Fargate requires 'ip'
+      TargetType: ip
       HealthCheckPath: /health
       HealthCheckIntervalSeconds: 30
       HealthyThresholdCount: 2
@@ -375,11 +375,13 @@ Resources:
       Tags:
         - Key: Name
           Value: Lab-TG-Green
-    DependsOn:
-      - ECSVPC
 
+  # ALB listener (prod)
   ALBListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
+    DependsOn:
+      - ALB
+      - ALBTargetGroup
     Properties:
       LoadBalancerArn: !Ref ALB
       Port: 80
@@ -387,25 +389,22 @@ Resources:
       DefaultActions:
         - Type: forward
           TargetGroupArn: !Ref ALBTargetGroup
-    DependsOn:
-      - ALB
-      - ALBTargetGroup
 
-  # Optional Test Listener for Canary Deployments (commented out by default)
+  # (Optional) test listener - left commented for now
   # ALBTestListener:
   #   Type: AWS::ElasticLoadBalancingV2::Listener
+  #   DependsOn:
+  #     - ALB
+  #     - ALBTargetGroupGreen
   #   Properties:
   #     LoadBalancerArn: !Ref ALB
   #     Port: 8081
   #     Protocol: HTTP
   #     DefaultActions:
   #       - Type: forward
-  #         TargetGroupArn: !Ref ALBTargetGroup
-  #   DependsOn:
-  #     - ALB
-  #     - ALBTargetGroup
+  #         TargetGroupArn: !Ref ALBTargetGroupGreen
 
-  # S3 for Artifacts
+  # S3 for pipeline artifacts
   ArtifactBucket:
     Type: AWS::S3::Bucket
     Properties:
@@ -414,14 +413,14 @@ Resources:
         BlockPublicAcls: true
         BlockPublicPolicy: true
         IgnorePublicAcls: true
-        RestrictPublicBuckets: true  # Security
+        RestrictPublicBuckets: true
       VersioningConfiguration:
-        Status: Enabled  # Reliability
+        Status: Enabled
       Tags:
         - Key: Name
           Value: Lab-Artifacts
 
-  # IAM for Pipeline/CodeDeploy
+  # IAM roles for pipeline & codedeploy
   CodePipelineRole:
     Type: AWS::IAM::Role
     Properties:
@@ -433,7 +432,7 @@ Resources:
               Service: codepipeline.amazonaws.com
             Action: sts:AssumeRole
       ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/AWSCodePipeline_FullAccess  # Refine in prod
+        - arn:aws:iam::aws:policy/AWSCodePipeline_FullAccess
       Tags:
         - Key: Name
           Value: CodePipeline-Role
@@ -454,6 +453,7 @@ Resources:
         - Key: Name
           Value: CodeDeploy-Role
 
+  # CodeDeploy application
   CodeDeployApp:
     Type: AWS::CodeDeploy::Application
     Properties:
@@ -463,6 +463,7 @@ Resources:
         - Key: Name
           Value: Lab-CodeDeploy-App
 
+  # DeploymentGroup for ECS blue/green (uses existing service)
   DeploymentGroup:
     Type: AWS::CodeDeploy::DeploymentGroup
     DependsOn:
@@ -483,24 +484,20 @@ Resources:
         DeploymentOption: WITH_TRAFFIC_CONTROL
       ECSServices:
         - ClusterName: !Ref ECSCluster
-          ServiceName: !GetAtt ECSService.Name
+          ServiceName: !Ref ECSService
       LoadBalancerInfo:
         TargetGroupPairInfoList:
           - ProdTrafficRoute:
               ListenerArns:
                 - !Ref ALBListener
             TargetGroups:
-              - Name: !Ref ALBTargetGroup # Blue
-              - Name: !Ref ALBTargetGroupGreen 
-            # Uncomment the lines below to enable a separate Test Traffic Route
-            # TestTrafficRoute:
-            #   ListenerArns:
-            #     - !Ref ALBTestListener
+              - Name: !Ref ALBTargetGroup
+              - Name: !Ref ALBTargetGroupGreen
       Tags:
         - Key: Name
           Value: Lab-Deployment-Group
 
-  # EventBridge for ECR Trigger
+  # EventBridge role and rule to trigger pipeline on ECR push
   EventBridgeRole:
     Type: AWS::IAM::Role
     Properties:
@@ -518,7 +515,7 @@ Resources:
             Statement:
               - Effect: Allow
                 Action: codepipeline:StartPipelineExecution
-                Resource: !Ref ECSPipeline
+                Resource: !GetAtt ECSPipeline.Arn
       Tags:
         - Key: Name
           Value: EventBridge-Role
@@ -548,8 +545,7 @@ Resources:
         - Key: Name
           Value: ECR-Push-Rule
 
-
-  # CodePipeline
+  # CodePipeline: Source = ECR, Deploy = CodeDeploy (Option 1)
   ECSPipeline:
     Type: AWS::CodePipeline::Pipeline
     Properties:
@@ -583,8 +579,6 @@ Resources:
               Configuration:
                 ApplicationName: !Ref CodeDeployApp
                 DeploymentGroupName: !Ref DeploymentGroup
-                TaskDefinitionTemplateArtifact: SourceOutput
-                AppSpecTemplateArtifact: SourceOutput
               InputArtifacts:
                 - Name: SourceOutput
       Tags:
@@ -596,7 +590,7 @@ Resources:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: /ecs/lab-task
-      RetentionInDays: 7  # Cost optimization
+      RetentionInDays: 7
       Tags:
         - Key: Name
           Value: ECS-Logs
