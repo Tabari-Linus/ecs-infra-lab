@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: ECS CICD Lab Infrastructure in eu-central-1 with HA NAT Gateways (Option 2: add CodeBuild)
+Description: 'ECS CICD Lab Infrastructure in eu-central-1 with HA NAT Gateways'
 
 Parameters:
   VpcCidr:
@@ -534,18 +534,18 @@ Resources:
           files:
             - appspec_artifact.zip
 # ...existing code...
-    Environment:
-      Type: LINUX_CONTAINER
-      ComputeType: BUILD_GENERAL1_SMALL
-      Image: aws/codebuild/standard:6.0
-      PrivilegedMode: false
-      EnvironmentVariables:
-        - Name: AWS_ACCOUNT_ID
-          Value: !Ref AWS::AccountId
-        - Name: AWS_DEFAULT_REGION
-          Value: !Ref Region
-    Artifacts:
-      Type: CODEPIPELINE
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/standard:6.0
+        PrivilegedMode: false
+        EnvironmentVariables:
+          - Name: AWS_ACCOUNT_ID
+            Value: !Ref AWS::AccountId
+          - Name: AWS_DEFAULT_REGION
+            Value: !Ref Region
+      Artifacts:
+        Type: CODEPIPELINE
 
   # CodeDeploy application
   CodeDeployApp:
