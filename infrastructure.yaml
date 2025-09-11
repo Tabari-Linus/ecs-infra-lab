@@ -373,6 +373,20 @@ Resources:
       - ALB
       - ALBTargetGroup
 
+  # Optional Test Listener for Canary Deployments (commented out by default)
+  # ALBTestListener:
+  #   Type: AWS::ElasticLoadBalancingV2::Listener
+  #   Properties:
+  #     LoadBalancerArn: !Ref ALB
+  #     Port: 8081
+  #     Protocol: HTTP
+  #     DefaultActions:
+  #       - Type: forward
+  #         TargetGroupArn: !Ref ALBTargetGroup
+  #   DependsOn:
+  #     - ALB
+  #     - ALBTargetGroup
+
   # S3 for Artifacts
   ArtifactBucket:
     Type: AWS::S3::Bucket
@@ -461,7 +475,10 @@ Resources:
                 - !Ref ALBListener
             TargetGroups:
               - Name: !Ref ALBTargetGroup  # Blue (prod)
-            TestTrafficRoute: {}  # Green tested before swap
+            # Uncomment the lines below to enable a separate Test Traffic Route
+            # TestTrafficRoute:
+            #   ListenerArns:
+            #     - !Ref ALBTestListener
       Tags:
         - Key: Name
           Value: Lab-Deployment-Group
