@@ -433,6 +433,9 @@ Resources:
 
   DeploymentGroup:
     Type: AWS::CodeDeploy::DeploymentGroup
+    DependsOn:
+      - ECSService
+      - ALBListener
     Properties:
       ApplicationName: !Ref CodeDeployApp
       DeploymentGroupName: LabDeploymentGroup
@@ -450,7 +453,7 @@ Resources:
         DeploymentOption: WITH_TRAFFIC_CONTROL
       EcsServices:
         - ClusterName: !Ref ECSCluster
-          ServiceName: !GetAtt ECSService.Name
+          ServiceName: !Ref ECSService
       LoadBalancerInfo:
         TargetGroupPairInfoList:
           - ProdTrafficRoute:
