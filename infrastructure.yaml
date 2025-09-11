@@ -480,7 +480,7 @@ Resources:
       ServiceRole: !GetAtt CodeBuildRole.Arn
       Source:
         Type: CODEPIPELINE
-      BuildSpec: | # This is the correct indentation
+      BuildSpec: |
         version: 0.2
         phases:
           pre_build:
