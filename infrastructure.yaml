@@ -473,7 +473,6 @@ Resources:
           Value: CodeBuild-Role
 
   # CodeBuild project: takes ECR source artifact, generates appspec + taskdef and outputs zip artifact
-  # ...existing code...
   CodeBuildProject:
     Type: AWS::CodeBuild::Project
     Properties:
