@@ -497,7 +497,6 @@ Resources:
         - Key: Name
           Value: Lab-Deployment-Group
 
-  # EventBridge role and rule to trigger pipeline on ECR push
   EventBridgeRole:
     Type: AWS::IAM::Role
     Properties:
@@ -515,7 +514,7 @@ Resources:
             Statement:
               - Effect: Allow
                 Action: codepipeline:StartPipelineExecution
-                Resource: !Ref ECSPipeline
+                Resource: !Sub arn:aws:codepipeline:${AWS::Region}:${AWS::AccountId}:${ECSPipeline}
       Tags:
         - Key: Name
           Value: EventBridge-Role
@@ -523,7 +522,7 @@ Resources:
   EventRule:
     Type: AWS::Events::Rule
     Properties:
-      Description: Trigger on ECR push
+      Description: Trigger pipeline on ECR image push
       EventPattern:
         source:
           - aws.ecr
@@ -538,14 +537,14 @@ Resources:
             - latest
       State: ENABLED
       Targets:
-        - Arn: !GetAtt ECSPipeline.Arn
+        - Arn: !Sub arn:aws:codepipeline:${AWS::Region}:${AWS::AccountId}:${ECSPipeline}
           RoleArn: !GetAtt EventBridgeRole.Arn
           Id: PipelineTrigger
       Tags:
         - Key: Name
           Value: ECR-Push-Rule
 
-  # CodePipeline: Source = ECR, Deploy = CodeDeploy (Option 1)
+# CodePipeline: Source = ECR, Deploy = CodeDeploy (Option 1)
   ECSPipeline:
     Type: AWS::CodePipeline::Pipeline
     Properties:
