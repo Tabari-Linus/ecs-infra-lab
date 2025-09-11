@@ -350,7 +350,7 @@ Resources:
       Port: 8080
       Protocol: HTTP
       TargetType: ip  # Fargate
-      HealthCheckPath: /health
+      HealthCheckPath: /
       HealthCheckIntervalSeconds: 30
       HealthyThresholdCount: 2
       UnhealthyThresholdCount: 2
