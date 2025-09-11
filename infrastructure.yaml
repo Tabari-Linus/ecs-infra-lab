@@ -346,17 +346,35 @@ Resources:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
       VpcId: !Ref ECSVPC
-      Name: Lab-TargetGroup
+      Name: Lab-TargetGroup-Blue
       Port: 8080
       Protocol: HTTP
-      TargetType: ip  # Fargate
+      TargetType: ip # Fargate requires 'ip'
       HealthCheckPath: /
       HealthCheckIntervalSeconds: 30
       HealthyThresholdCount: 2
       UnhealthyThresholdCount: 2
       Tags:
         - Key: Name
-          Value: Lab-TG
+          Value: Lab-TG-Blue
+    DependsOn:
+      - ECSVPC
+  
+  ALBTargetGroupGreen:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      VpcId: !Ref ECSVPC
+      Name: Lab-TargetGroup-Green
+      Port: 8080
+      Protocol: HTTP
+      TargetType: ip # Fargate requires 'ip'
+      HealthCheckPath: /
+      HealthCheckIntervalSeconds: 30
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 2
+      Tags:
+        - Key: Name
+          Value: Lab-TG-Green
     DependsOn:
       - ECSVPC
 
@@ -474,7 +492,8 @@ Resources:
               ListenerArns:
                 - !Ref ALBListener
             TargetGroups:
-              - Name: !Ref ALBTargetGroup  # Blue (prod)
+              - Name: !Ref ALBTargetGroup # Blue
+              - Name: !Ref ALBTargetGroupGreen 
             # Uncomment the lines below to enable a separate Test Traffic Route
             # TestTrafficRoute:
             #   ListenerArns:
