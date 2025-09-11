@@ -664,7 +664,6 @@ Resources:
                 - Name: BuildOutput
               Configuration:
                 ProjectName: !Ref CodeBuildProject
-        # ...existing code...
         - Name: Deploy
           Actions:
             - Name: DeployToECS
@@ -676,11 +675,8 @@ Resources:
               Configuration:
                 ApplicationName: !Ref CodeDeployApp
                 DeploymentGroupName: !Ref DeploymentGroup
-                AppSpecArtifact: BuildOutput
-                TaskDefinitionArtifact: BuildOutput
               InputArtifacts:
-                - Name: BuildOutput
-# ...existing code...
+                - Name: BuildOutput # This is the single zip artifact containing both files.
       Tags:
         - Key: Name
           Value: Lab-Pipeline
