@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: ECS CICD Lab Infrastructure in eu-central-1 with HA NAT Gateways (Option 1 pipeline)
+Description: ECS CICD Lab Infrastructure in eu-central-1 with HA NAT Gateways (Option 2: add CodeBuild)
 
 Parameters:
   VpcCidr:
@@ -283,7 +283,7 @@ Resources:
       TaskRoleArn: !GetAtt ECSTaskRole.Arn
       ContainerDefinitions:
         - Name: app-container
-          Image: !Sub "${AWS::AccountId}.dkr.ecr.eu-central-1.amazonaws.com/java-app-repo:latest"
+          Image: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/java-app-repo:latest"
           PortMappings:
             - ContainerPort: 8080
           LogConfiguration:
@@ -390,20 +390,6 @@ Resources:
         - Type: forward
           TargetGroupArn: !Ref ALBTargetGroup
 
-  # (Optional) test listener - left commented for now
-  # ALBTestListener:
-  #   Type: AWS::ElasticLoadBalancingV2::Listener
-  #   DependsOn:
-  #     - ALB
-  #     - ALBTargetGroupGreen
-  #   Properties:
-  #     LoadBalancerArn: !Ref ALB
-  #     Port: 8081
-  #     Protocol: HTTP
-  #     DefaultActions:
-  #       - Type: forward
-  #         TargetGroupArn: !Ref ALBTargetGroupGreen
-
   # S3 for pipeline artifacts
   ArtifactBucket:
     Type: AWS::S3::Bucket
@@ -453,6 +439,86 @@ Resources:
         - Key: Name
           Value: CodeDeploy-Role
 
+  # CodeBuild role (for build stage)
+  CodeBuildRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codebuild.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
+        - arn:aws:iam::aws:policy/AmazonS3FullAccess
+        - arn:aws:iam::aws:policy/CloudWatchLogsFullAccess
+      Tags:
+        - Key: Name
+          Value: CodeBuild-Role
+
+  # CodeBuild project: takes ECR source artifact, generates appspec + taskdef and outputs zip artifact
+  CodeBuildProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: ecs-artifact-generator
+      ServiceRole: !GetAtt CodeBuildRole.Arn
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: |
+          version: 0.2
+          phases:
+            pre_build:
+              commands:
+                - echo "Preparing appspec and updated taskdef"
+                - echo "AWS account: $AWS_ACCOUNT_ID, region: $AWS_DEFAULT_REGION"
+            build:
+              commands:
+                - IMAGE_URI="$AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/java-app-repo:latest"
+                - echo "Image URI: $IMAGE_URI"
+                - printf "version: 0.0
+
+  TargetService:
+    Type: AWS::ECS::Service
+    Properties:
+      TaskDefinition: \"TASK_DEFINITION\"
+      LoadBalancerInfo:
+        ContainerName: \"app-container\"
+        ContainerPort: 8080
+          " > appspec.yaml
+                          - printf "{\"family\": \"lab-task\",
+            \"networkMode\": \"awsvpc\",
+            \"requiresCompatibilities\": [\"FARGATE\"],
+            \"cpu\": \"256\",
+            \"memory\": \"512\",
+            \"executionRoleArn\": \"%s\",
+            \"taskRoleArn\": \"%s\",
+            \"containerDefinitions\": [
+              {\"name\": \"app-container\",
+                \"image\": \"%s\",
+                \"portMappings\": [{\"containerPort\": 8080}],
+                \"logConfiguration\": {\"logDriver\": \"awslogs\", \"options\": {\"awslogs-group\": \"/ecs/lab-task\", \"awslogs-region\": \"%s\", \"awslogs-stream-prefix\": \"ecs\"}}
+              }
+            ]
+          }" "$(aws sts get-caller-identity --query Account --output text)" "$(aws sts get-caller-identity --query Account --output text)" "$IMAGE_URI" "$AWS_DEFAULT_REGION" > taskdef.json
+              - zip -r appspec_artifact.zip appspec.yaml taskdef.json
+        artifacts:
+          files:
+            - appspec_artifact.zip
+    Environment:
+      Type: LINUX_CONTAINER
+      ComputeType: BUILD_GENERAL1_SMALL
+      Image: aws/codebuild/standard:6.0
+      PrivilegedMode: false
+      EnvironmentVariables:
+        - Name: AWS_ACCOUNT_ID
+          Value: !Ref AWS::AccountId
+        - Name: AWS_DEFAULT_REGION
+          Value: !Ref Region
+    Artifacts:
+      Type: CODEPIPELINE
+
   # CodeDeploy application
   CodeDeployApp:
     Type: AWS::CodeDeploy::Application
@@ -497,6 +563,7 @@ Resources:
         - Key: Name
           Value: Lab-Deployment-Group
 
+  # EventBridge role and rule to trigger pipeline on ECR push
   EventBridgeRole:
     Type: AWS::IAM::Role
     Properties:
@@ -544,7 +611,7 @@ Resources:
         - Key: Name
           Value: ECR-Push-Rule
 
-# CodePipeline: Source = ECR, Deploy = CodeDeploy (Option 1)
+# CodePipeline: Source = ECR, Build = CodeBuild (new), Deploy = CodeDeploy
   ECSPipeline:
     Type: AWS::CodePipeline::Pipeline
     Properties:
@@ -567,6 +634,20 @@ Resources:
                 RepositoryName: !Ref ECRRepo
               OutputArtifacts:
                 - Name: SourceOutput
+        - Name: Build
+          Actions:
+            - Name: BuildArtifact
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: '1'
+              InputArtifacts:
+                - Name: SourceOutput
+              OutputArtifacts:
+                - Name: BuildOutput
+              Configuration:
+                ProjectName: !Ref CodeBuildProject
         - Name: Deploy
           Actions:
             - Name: DeployToECS
@@ -578,8 +659,9 @@ Resources:
               Configuration:
                 ApplicationName: !Ref CodeDeployApp
                 DeploymentGroupName: !Ref DeploymentGroup
+                AppSpecArtifact: BuildOutput
               InputArtifacts:
-                - Name: SourceOutput
+                - Name: BuildOutput
       Tags:
         - Key: Name
           Value: Lab-Pipeline
