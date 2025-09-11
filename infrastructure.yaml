@@ -591,8 +591,8 @@ Resources:
               ListenerArns:
                 - !Ref ALBListener
             TargetGroups:
-              - Name: !GetAtt ALBTargetGroup.Name
-              - Name: !GetAtt ALBTargetGroupGreen.Name
+              - Name: Lab-TargetGroup-Blue
+              - Name: Lab-TargetGroup-Green
       Tags:
         - Key: Name
           Value: Lab-Deployment-Group
