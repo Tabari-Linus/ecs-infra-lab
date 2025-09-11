@@ -368,7 +368,7 @@ Resources:
       Port: 8080
       Protocol: HTTP
       TargetType: ip # Fargate requires 'ip'
-      HealthCheckPath: /
+      HealthCheckPath: /health
       HealthCheckIntervalSeconds: 30
       HealthyThresholdCount: 2
       UnhealthyThresholdCount: 2
@@ -584,7 +584,6 @@ Resources:
                 ApplicationName: !Ref CodeDeployApp
                 DeploymentGroupName: !Ref DeploymentGroup
                 TaskDefinitionTemplateArtifact: SourceOutput
-                TaskDefinitionTemplatePath: taskdef.json
                 AppSpecTemplateArtifact: SourceOutput
               InputArtifacts:
                 - Name: SourceOutput
