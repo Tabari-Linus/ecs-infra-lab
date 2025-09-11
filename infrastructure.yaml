@@ -500,7 +500,7 @@ Resources:
                         Properties:
                           TaskDefinition: <TASK_DEFINITION>
                           LoadBalancerInfo:
-                            ContainerName: app-container
+                            ContainerName: "app-container"
                             ContainerPort: 8080
                   EOF
                 - |
@@ -530,9 +530,12 @@ Resources:
                     ]
                   }
                   EOF
-                - echo "Created appspec.yaml and taskdef.json files"
+                - echo "=== Generated appspec.yaml ==="
                 - cat appspec.yaml
+                - echo "=== Generated taskdef.json ==="
                 - cat taskdef.json
+                - echo "=== Validating YAML syntax ==="
+                - python3 -c "import yaml; yaml.safe_load(open('appspec.yaml'))" && echo "AppSpec YAML is valid" || echo "AppSpec YAML is invalid"
           artifacts:
             files:
               - appspec.yaml
