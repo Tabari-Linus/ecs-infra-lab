@@ -473,8 +473,6 @@ Resources:
       DeploymentGroupName: LabDeploymentGroup
       ServiceRoleArn: !GetAtt CodeDeployRole.Arn
       BlueGreenDeploymentConfiguration:
-        GreenFleetProvisioningOption:
-          Action: DISCOVER_EXISTING
         DeploymentReadyOption:
           ActionOnTimeout: CONTINUE_DEPLOYMENT
         TerminateBlueInstancesOnDeploymentSuccess:
