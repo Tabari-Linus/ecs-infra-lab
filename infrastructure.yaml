@@ -484,7 +484,7 @@ Resources:
         DeploymentOption: WITH_TRAFFIC_CONTROL
       ECSServices:
         - ClusterName: !Ref ECSCluster
-          ServiceName: !Ref ECSService
+          ServiceName: !GetAtt ECSService.Name
       LoadBalancerInfo:
         TargetGroupPairInfoList:
           - ProdTrafficRoute:
