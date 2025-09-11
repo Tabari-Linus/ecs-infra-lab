@@ -486,21 +486,21 @@ Resources:
             pre_build:
               commands:
                 - echo "Preparing appspec and updated taskdef"
-                - echo "AWS account:$AWS_ACCOUNT_ID, region:$AWS_DEFAULT_REGION"
+                - echo "AWS account $AWS_ACCOUNT_ID, region $AWS_DEFAULT_REGION"
             build:
               commands:
                 - IMAGE_URI="$AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/java-app-repo:latest"
-                - echo "Image URI:$IMAGE_URI"
+                - echo "Image URI $IMAGE_URI"
                 - |
-                  cat > appspec.yaml << EOF
+                  cat > appspec.yaml << 'EOF'
                   version: 0.0
                   Resources:
                     - TargetService:
                         Type: AWS::ECS::Service
                         Properties:
-                          TaskDefinition: "TASK_DEFINITION"
+                          TaskDefinition: <TASK_DEFINITION>
                           LoadBalancerInfo:
-                            ContainerName: "app-container"
+                            ContainerName: app-container
                             ContainerPort: 8080
                   EOF
                 - |
@@ -531,7 +531,8 @@ Resources:
                   }
                   EOF
                 - echo "Created appspec.yaml and taskdef.json files"
-                - ls -la
+                - cat appspec.yaml
+                - cat taskdef.json
           artifacts:
             files:
               - appspec.yaml
