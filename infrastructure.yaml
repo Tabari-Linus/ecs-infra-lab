@@ -489,10 +489,10 @@ Resources:
                 - echo "AWS account: $AWS_ACCOUNT_ID, region: $AWS_DEFAULT_REGION"
             build:
               commands:
-                - IMAGE_URI="$AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/java-app-repo:latest"
-                - echo "Image URI: $IMAGE_URI"
                 - |
-                  cat <<EOF > appspec.yaml
+                  IMAGE_URI="$AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/java-app-repo:latest"
+                  echo "Image URI: $IMAGE_URI"
+                  cat > appspec.yaml <<'EOF'
                   version: 0.0
                   Resources:
                     - TargetService:
@@ -503,8 +503,7 @@ Resources:
                             ContainerName: "app-container"
                             ContainerPort: 8080
                   EOF
-                - |
-                  cat <<EOF > taskdef.json
+                  cat > taskdef.json <<'EOF'
                   {
                     "family": "lab-task",
                     "networkMode": "awsvpc",
@@ -530,7 +529,7 @@ Resources:
                     ]
                   }
                   EOF
-                - zip -r appspec_artifact.zip appspec.yaml taskdef.json
+                  zip -r appspec_artifact.zip appspec.yaml taskdef.json
           artifacts:
             files:
               - appspec_artifact.zip
