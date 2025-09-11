@@ -459,6 +459,7 @@ Resources:
           Value: CodeBuild-Role
 
   # CodeBuild project: takes ECR source artifact, generates appspec + taskdef and outputs zip artifact
+  # ...existing code...
   CodeBuildProject:
     Type: AWS::CodeBuild::Project
     Properties:
@@ -466,46 +467,73 @@ Resources:
       ServiceRole: !GetAtt CodeBuildRole.Arn
       Source:
         Type: CODEPIPELINE
-        BuildSpec: |
-          version: 0.2
-          phases:
-            pre_build:
-              commands:
-                - echo "Preparing appspec and updated taskdef"
-                - echo "AWS account: $AWS_ACCOUNT_ID, region: $AWS_DEFAULT_REGION"
-            build:
-              commands:
-                - IMAGE_URI="$AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/java-app-repo:latest"
-                - echo "Image URI: $IMAGE_URI"
-                - printf "version: 0.0
-
-  TargetService:
-    Type: AWS::ECS::Service
-    Properties:
-      TaskDefinition: \"TASK_DEFINITION\"
-      LoadBalancerInfo:
-        ContainerName: \"app-container\"
-        ContainerPort: 8080
-          " > appspec.yaml
-                          - printf "{\"family\": \"lab-task\",
-            \"networkMode\": \"awsvpc\",
-            \"requiresCompatibilities\": [\"FARGATE\"],
-            \"cpu\": \"256\",
-            \"memory\": \"512\",
-            \"executionRoleArn\": \"%s\",
-            \"taskRoleArn\": \"%s\",
-            \"containerDefinitions\": [
-              {\"name\": \"app-container\",
-                \"image\": \"%s\",
-                \"portMappings\": [{\"containerPort\": 8080}],
-                \"logConfiguration\": {\"logDriver\": \"awslogs\", \"options\": {\"awslogs-group\": \"/ecs/lab-task\", \"awslogs-region\": \"%s\", \"awslogs-stream-prefix\": \"ecs\"}}
-              }
-            ]
-          }" "$(aws sts get-caller-identity --query Account --output text)" "$(aws sts get-caller-identity --query Account --output text)" "$IMAGE_URI" "$AWS_DEFAULT_REGION" > taskdef.json
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/standard:6.0
+        PrivilegedMode: false
+        EnvironmentVariables:
+          - Name: AWS_ACCOUNT_ID
+            Value: !Ref AWS::AccountId
+          - Name: AWS_DEFAULT_REGION
+            Value: !Ref Region
+      Artifacts:
+        Type: CODEPIPELINE
+      BuildSpec: |
+        version: 0.2
+        phases:
+          pre_build:
+            commands:
+              - echo "Preparing appspec and updated taskdef"
+              - echo "AWS account: $AWS_ACCOUNT_ID, region: $AWS_DEFAULT_REGION"
+          build:
+            commands:
+              - IMAGE_URI="$AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/java-app-repo:latest"
+              - echo "Image URI: $IMAGE_URI"
+              - |
+                cat <<EOF > appspec.yaml
+                version: 0.0
+                Resources:
+                  - TargetService:
+                      Type: AWS::ECS::Service
+                      Properties:
+                        TaskDefinition: "TASK_DEFINITION"
+                        LoadBalancerInfo:
+                          ContainerName: "app-container"
+                          ContainerPort: 8080
+                EOF
+              - |
+                cat <<EOF > taskdef.json
+                {
+                  "family": "lab-task",
+                  "networkMode": "awsvpc",
+                  "requiresCompatibilities": ["FARGATE"],
+                  "cpu": "256",
+                  "memory": "512",
+                  "executionRoleArn": "${ECS_EXEC_ROLE_ARN}",
+                  "taskRoleArn": "${ECS_TASK_ROLE_ARN}",
+                  "containerDefinitions": [
+                    {
+                      "name": "app-container",
+                      "image": "$IMAGE_URI",
+                      "portMappings": [{"containerPort": 8080}],
+                      "logConfiguration": {
+                        "logDriver": "awslogs",
+                        "options": {
+                          "awslogs-group": "/ecs/lab-task",
+                          "awslogs-region": "$AWS_DEFAULT_REGION",
+                          "awslogs-stream-prefix": "ecs"
+                        }
+                      }
+                    }
+                  ]
+                }
+                EOF
               - zip -r appspec_artifact.zip appspec.yaml taskdef.json
         artifacts:
           files:
             - appspec_artifact.zip
+# ...existing code...
     Environment:
       Type: LINUX_CONTAINER
       ComputeType: BUILD_GENERAL1_SMALL
