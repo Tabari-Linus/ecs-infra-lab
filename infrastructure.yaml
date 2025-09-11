@@ -492,7 +492,7 @@ Resources:
                 - IMAGE_URI="$AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/java-app-repo:latest"
                 - echo "Image URI $IMAGE_URI"
                 - |
-                  cat > appspec.yaml << 'EOF'
+                  cat > appspec.yaml << EOF
                   version: 0.0
                   Resources:
                     - TargetService:
