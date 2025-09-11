@@ -480,7 +480,7 @@ Resources:
       ServiceRole: !GetAtt CodeBuildRole.Arn
       Source:
         Type: CODEPIPELINE
-      BuildSpec: | # This is the correct location for BuildSpec
+      BuildSpec: | # This is the correct indentation
         version: 0.2
         phases:
           pre_build:
@@ -526,7 +526,8 @@ Resources:
                           "awslogs-stream-prefix": "ecs"
                         }
                       }
-                    ]
+                    }
+                  ]
                 }
                 EOF
               - zip -r appspec_artifact.zip appspec.yaml taskdef.json
