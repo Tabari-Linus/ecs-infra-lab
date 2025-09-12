@@ -645,13 +645,13 @@ Resources:
           Action: TERMINATE
           TerminationWaitTimeInMinutes: 5
         LoadBalancerInfo:
-          TargetGroupPairInfo: # This is the correct property name
-            ProdTrafficRoute:
-              ListenerArns:
-                - !Ref ALBListener
-            TargetGroups:
-              - !Ref ALBTargetGroup
-              - !Ref ALBTargetGroupGreen
+          TargetGroupPairInfoList:
+            - ProdTrafficRoute:
+                ListenerArns:
+                  - !Ref ALBListener
+              TargetGroups:
+                - Name: !GetAtt ALBTargetGroup.TargetGroupName
+                - Name: !GetAtt ALBTargetGroupGreen.TargetGroupName
       AutoRollbackConfiguration:
         Enabled: true
         Events:
@@ -660,6 +660,7 @@ Resources:
       Tags:
         - Key: Name
           Value: Lab-Deployment-Group
+
 
   # CodePipeline
   ECSPipeline:
