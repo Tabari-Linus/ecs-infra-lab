@@ -1,16 +1,30 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'ECS CICD Lab Infrastructure in eu-central-1 with HA NAT Gateways'
+Description: 'ECS CI/CD Lab Infrastructure in eu-central-1 with HA NAT Gateways and Configurable CIDRs'
 
 Parameters:
   VpcCidr:
     Type: String
     Default: 10.0.0.0/16
-  Region:
+    Description: CIDR block for the VPC
+  PublicSubnet1Cidr:
     Type: String
-    Default: eu-central-1
+    Default: 10.0.1.0/24
+    Description: CIDR block for Public Subnet 1
+  PublicSubnet2Cidr:
+    Type: String
+    Default: 10.0.2.0/24
+    Description: CIDR block for Public Subnet 2
+  PrivateSubnet1Cidr:
+    Type: String
+    Default: 10.0.3.0/24
+    Description: CIDR block for Private Subnet 1
+  PrivateSubnet2Cidr:
+    Type: String
+    Default: 10.0.4.0/24
+    Description: CIDR block for Private Subnet 2
 
 Resources:
-  # VPC 
+  # VPC
   ECSVPC:
     Type: AWS::EC2::VPC
     Properties:
@@ -26,7 +40,7 @@ Resources:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref ECSVPC
-      CidrBlock: 10.0.1.0/24
+      CidrBlock: !Ref PublicSubnet1Cidr
       AvailabilityZone: !Select [0, !GetAZs '']
       MapPublicIpOnLaunch: true
       Tags:
@@ -37,7 +51,7 @@ Resources:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref ECSVPC
-      CidrBlock: 10.0.2.0/24
+      CidrBlock: !Ref PublicSubnet2Cidr
       AvailabilityZone: !Select [1, !GetAZs '']
       MapPublicIpOnLaunch: true
       Tags:
@@ -48,7 +62,7 @@ Resources:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref ECSVPC
-      CidrBlock: 10.0.3.0/24
+      CidrBlock: !Ref PrivateSubnet1Cidr
       AvailabilityZone: !Select [0, !GetAZs '']
       Tags:
         - Key: Name
@@ -58,7 +72,7 @@ Resources:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref ECSVPC
-      CidrBlock: 10.0.4.0/24
+      CidrBlock: !Ref PrivateSubnet2Cidr
       AvailabilityZone: !Select [1, !GetAZs '']
       Tags:
         - Key: Name
@@ -115,7 +129,7 @@ Resources:
         - Key: Name
           Value: Nat-GW-1b
 
-  # Route tables
+  # Route Tables
   PublicRouteTable:
     Type: AWS::EC2::RouteTable
     Properties:
@@ -212,12 +226,14 @@ Resources:
           SourceSecurityGroupId: !Ref ALBSecurityGroup
       Egress:
         - IpProtocol: -1
+          FromPort: 0
+          ToPort: 65535
           CidrIp: 0.0.0.0/0
       Tags:
         - Key: Name
           Value: ECS-SG
 
-  # ECR repository
+  # ECR Repository
   ECRRepo:
     Type: AWS::ECR::Repository
     Properties:
@@ -229,7 +245,7 @@ Resources:
         - Key: Name
           Value: Lab-ECR
 
-  # ECS cluster & roles
+  # ECS Cluster & Roles
   ECSCluster:
     Type: AWS::ECS::Cluster
     Properties:
@@ -264,12 +280,21 @@ Resources:
             Principal:
               Service: ecs-tasks.amazonaws.com
             Action: sts:AssumeRole
-      Policies: []
+      Policies:
+        - PolicyName: ECSCloudWatchLogs
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/ecs/lab-task:*"
       Tags:
         - Key: Name
           Value: ECS-Task-Role
 
-  # Task definition (initial)
+  # Task Definition
   TaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
@@ -283,24 +308,25 @@ Resources:
       TaskRoleArn: !GetAtt ECSTaskRole.Arn
       ContainerDefinitions:
         - Name: app-container
-          Image: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/java-app-repo:latest"
+          Image: !Sub "${AWS::AccountId}.dkr.ecr.eu-central-1.amazonaws.com/java-app-repo:latest"
           PortMappings:
             - ContainerPort: 8080
           LogConfiguration:
             LogDriver: awslogs
             Options:
               awslogs-group: /ecs/lab-task
-              awslogs-region: !Ref Region
+              awslogs-region: eu-central-1
               awslogs-stream-prefix: ecs
       Tags:
         - Key: Name
           Value: Lab-TaskDef
 
-  # ECS Service (uses CodeDeploy controller)
+  # ECS Service
   ECSService:
     Type: AWS::ECS::Service
     DependsOn:
       - ALBListener
+      - ALBTargetGroup
     Properties:
       Cluster: !Ref ECSCluster
       ServiceName: LabService
@@ -325,6 +351,59 @@ Resources:
         - Key: Name
           Value: Lab-Service
 
+  # Auto-Scaling
+  ScalableTarget:
+    Type: AWS::ApplicationAutoScaling::ScalableTarget
+    Properties:
+      MaxCapacity: 10
+      MinCapacity: 2
+      ResourceId: !Sub "service/${ECSCluster}/${ECSService.Name}"
+      RoleARN: !GetAtt AutoScalingRole.Arn
+      ScalableDimension: ecs:service:DesiredCount
+      ServiceNamespace: ecs
+
+  ScalingPolicy:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName: CPUHighPolicy
+      PolicyType: TargetTrackingScaling
+      ScalingTargetId: !Ref ScalableTarget
+      TargetTrackingScalingPolicyConfiguration:
+        TargetValue: 70.0
+        ScaleInCooldown: 60
+        ScaleOutCooldown: 60
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ECSServiceAverageCPUUtilization
+
+  AutoScalingRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: application-autoscaling.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: AutoScalingPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ecs:DescribeServices
+                  - ecs:UpdateService
+                Resource: !Sub "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:service/${ECSCluster}/${ECSService.Name}"
+              - Effect: Allow
+                Action:
+                  - cloudwatch:PutMetricAlarm
+                  - cloudwatch:DescribeAlarms
+                Resource: "*"
+      Tags:
+        - Key: Name
+          Value: AutoScaling-Role
+
   # ALB
   ALB:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
@@ -341,7 +420,7 @@ Resources:
         - Key: Name
           Value: Lab-ALB
 
-  # Target groups: Blue (for service) and Green (for CodeDeploy)
+  # Target Groups
   ALBTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     DependsOn: ALB
@@ -376,7 +455,7 @@ Resources:
         - Key: Name
           Value: Lab-TG-Green
 
-  # ALB listener (prod)
+  # ALB Listener
   ALBListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
     DependsOn:
@@ -390,7 +469,7 @@ Resources:
         - Type: forward
           TargetGroupArn: !Ref ALBTargetGroup
 
-  # S3 for pipeline artifacts
+  # S3 for Pipeline Artifacts
   ArtifactBucket:
     Type: AWS::S3::Bucket
     Properties:
@@ -406,7 +485,7 @@ Resources:
         - Key: Name
           Value: Lab-Artifacts
 
-  # IAM roles for pipeline & codedeploy
+  # IAM Roles for Pipeline and CodeDeploy
   CodePipelineRole:
     Type: AWS::IAM::Role
     Properties:
@@ -417,22 +496,41 @@ Resources:
             Principal:
               Service: codepipeline.amazonaws.com
             Action: sts:AssumeRole
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/AWSCodePipeline_FullAccess
-        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
-        - arn:aws:iam::aws:policy/AWSCodeDeployFullAccess
-        - arn:aws:iam::aws:policy/AmazonS3FullAccess
       Policies:
-        - PolicyName: CodeBuildPermissions
+        - PolicyName: CodePipelinePolicy
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
               - Effect: Allow
                 Action:
-                  - codebuild:StartBuild
-                  - codebuild:BatchGetBuilds
-                  - codebuild:StopBuild
-                Resource: !GetAtt CodeBuildProject.Arn
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:GetBucketVersioning
+                  - s3:ListBucket
+                Resource:
+                  - !Sub "arn:aws:s3:::lab-artifact-${AWS::AccountId}-${AWS::Region}"
+                  - !Sub "arn:aws:s3:::lab-artifact-${AWS::AccountId}-${AWS::Region}/*"
+              - Effect: Allow
+                Action:
+                  - ecr:GetDownloadUrlForLayer
+                  - ecr:BatchGetImage
+                  - ecr:DescribeImages
+                Resource: !Sub "arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/java-app-repo"
+              - Effect: Allow
+                Action:
+                  - codedeploy:GetApplication
+                  - codedeploy:GetDeploymentGroup
+                  - codedeploy:GetDeployment
+                  - codedeploy:CreateDeployment
+                  - codedeploy:RegisterApplicationRevision
+                Resource:
+                  - !Sub "arn:aws:codedeploy:${AWS::Region}:${AWS::AccountId}:application:${CodeDeployApp}"
+                  - !Sub "arn:aws:codedeploy:${AWS::Region}:${AWS::AccountId}:deploymentgroup:${CodeDeployApp}/${DeploymentGroup}"
+              - Effect: Allow
+                Action:
+                  - ecs:DescribeServices
+                  - ecs:UpdateService
+                Resource: !Sub "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:service/${ECSCluster}/${ECSService.Name}"
       Tags:
         - Key: Name
           Value: CodePipeline-Role
@@ -447,162 +545,34 @@ Resources:
             Principal:
               Service: codedeploy.amazonaws.com
             Action: sts:AssumeRole
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/AWSCodeDeployRoleForECS
+      Policies:
+        - PolicyName: CodeDeployPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ecs:DescribeServices
+                  - ecs:UpdateService
+                  - ecs:RegisterTaskDefinition
+                Resource:
+                  - !Sub "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:service/${ECSCluster}/${ECSService.Name}"
+                  - !Sub "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:task-definition/lab-task:*"
+              - Effect: Allow
+                Action:
+                  - elasticloadbalancing:DescribeTargetGroups
+                  - elasticloadbalancing:DescribeListeners
+                  - elasticloadbalancing:ModifyListener
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                Resource: !Sub "arn:aws:s3:::lab-artifact-${AWS::AccountId}-${AWS::Region}/*"
       Tags:
         - Key: Name
           Value: CodeDeploy-Role
 
-  # CodeBuild role (for build stage)
-  CodeBuildRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: codebuild.amazonaws.com
-            Action: sts:AssumeRole
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryPowerUser
-        - arn:aws:iam::aws:policy/AmazonS3FullAccess
-        - arn:aws:iam::aws:policy/CloudWatchLogsFullAccess
-      Tags:
-        - Key: Name
-          Value: CodeBuild-Role
-
-  # CodeBuild project: FIXED AppSpec generation
-  CodeBuildProject:
-    Type: AWS::CodeBuild::Project
-    Properties:
-      Name: ecs-artifact-generator
-      ServiceRole: !GetAtt CodeBuildRole.Arn
-      Source:
-        Type: CODEPIPELINE
-        BuildSpec: |
-          version: 0.2
-          phases:
-            pre_build:
-              commands:
-                - echo "Preparing deployment artifacts..."
-            build:
-              commands:
-                - IMAGE_URI="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/java-app-repo:latest"
-                - printf '{"ImageURI":"%s"}' $IMAGE_URI > imageDetail.json
-                - |
-                  cat <<EOF > appspec.yaml
-                  version: 0.0
-                  Resources:
-                    - TargetService:
-                        Type: AWS::ECS::Service
-                        Properties:
-                          TaskDefinition: <TASK_DEFINITION>
-                          LoadBalancerInfo:
-                            ContainerName: "app-container"
-                            ContainerPort: 8080
-                  EOF
-                - |
-                  cat <<EOF > taskdef.json
-                  {
-                    "executionRoleArn": "${ECS_EXEC_ROLE_ARN}",
-                    "taskRoleArn": "${ECS_TASK_ROLE_ARN}",
-                    "containerDefinitions": [
-                      {
-                        "name": "app-container",
-                        "image": "<IMAGE_NAME>",
-                        "portMappings": [
-                          {
-                            "containerPort": 8080,
-                            "protocol": "tcp"
-                          }
-                        ],
-                        "logConfiguration": {
-                          "logDriver": "awslogs",
-                          "options": {
-                            "awslogs-group": "/ecs/lab-task",
-                            "awslogs-region": "${AWS_DEFAULT_REGION}",
-                            "awslogs-stream-prefix": "ecs"
-                          }
-                        }
-                      }
-                    ],
-                    "requiresCompatibilities": [
-                      "FARGATE"
-                    ],
-                    "networkMode": "awsvpc",
-                    "cpu": "256",
-                    "memory": "512",
-                    "family": "lab-task"
-                  }
-                  EOF
-          artifacts:
-            files:
-              - appspec.yaml
-              - taskdef.json
-              - imageDetail.json
-            discard-paths: yes
-      Environment:
-        Type: LINUX_CONTAINER
-        ComputeType: BUILD_GENERAL1_SMALL
-        Image: aws/codebuild/standard:6.0
-        EnvironmentVariables:
-          - Name: AWS_ACCOUNT_ID
-            Value: !Ref AWS::AccountId
-          - Name: AWS_DEFAULT_REGION
-            Value: !Ref Region
-          - Name: ECS_EXEC_ROLE_ARN
-            Value: !GetAtt ECSExecutionRole.Arn
-          - Name: ECS_TASK_ROLE_ARN
-            Value: !GetAtt ECSTaskRole.Arn
-      Artifacts:
-        Type: CODEPIPELINE
-
-  # CodeDeploy application
-  CodeDeployApp:
-    Type: AWS::CodeDeploy::Application
-    Properties:
-      ApplicationName: LabCodeDeployApp
-      ComputePlatform: ECS
-      Tags:
-        - Key: Name
-          Value: Lab-CodeDeploy-App
-
-  # DeploymentGroup for ECS blue/green (uses existing service)
-  DeploymentGroup:
-    Type: AWS::CodeDeploy::DeploymentGroup
-    DependsOn:
-      - ECSService
-      - ALBListener
-    Properties:
-      ApplicationName: !Ref CodeDeployApp
-      DeploymentGroupName: LabDeploymentGroup
-      ServiceRoleArn: !GetAtt CodeDeployRole.Arn
-      BlueGreenDeploymentConfiguration:
-        DeploymentReadyOption:
-          ActionOnTimeout: CONTINUE_DEPLOYMENT
-        TerminateBlueInstancesOnDeploymentSuccess:
-          Action: TERMINATE
-          TerminationWaitTimeInMinutes: 5
-      DeploymentStyle:
-        DeploymentType: BLUE_GREEN
-        DeploymentOption: WITH_TRAFFIC_CONTROL
-      ECSServices:
-        - ClusterName: !Ref ECSCluster
-          ServiceName: !GetAtt ECSService.Name
-      LoadBalancerInfo:
-        TargetGroupPairInfoList:
-          - ProdTrafficRoute:
-              ListenerArns:
-                - !Ref ALBListener
-            TargetGroups:
-              - Name: Lab-TargetGroup-Blue
-              - Name: Lab-TargetGroup-Green
-      Tags:
-        - Key: Name
-          Value: Lab-Deployment-Group
-
-  # EventBridge role and rule to trigger pipeline on ECR push
+  # EventBridge Role and Rule
   EventBridgeRole:
     Type: AWS::IAM::Role
     Properties:
@@ -620,7 +590,7 @@ Resources:
             Statement:
               - Effect: Allow
                 Action: codepipeline:StartPipelineExecution
-                Resource: !Sub arn:aws:codepipeline:${AWS::Region}:${AWS::AccountId}:${ECSPipeline}
+                Resource: !Sub "arn:aws:codepipeline:${AWS::Region}:${AWS::AccountId}:${ECSPipeline}"
       Tags:
         - Key: Name
           Value: EventBridge-Role
@@ -643,14 +613,63 @@ Resources:
             - latest
       State: ENABLED
       Targets:
-        - Arn: !Sub arn:aws:codepipeline:${AWS::Region}:${AWS::AccountId}:${ECSPipeline}
+        - Arn: !Sub "arn:aws:codepipeline:${AWS::Region}:${AWS::AccountId}:${ECSPipeline}"
           RoleArn: !GetAtt EventBridgeRole.Arn
           Id: PipelineTrigger
       Tags:
         - Key: Name
           Value: ECR-Push-Rule
 
-  # CodePipeline: Source = ECR, Build = CodeBuild (new), Deploy = CodeDeploy
+  # CodeDeploy Application
+  CodeDeployApp:
+    Type: AWS::CodeDeploy::Application
+    Properties:
+      ApplicationName: LabCodeDeployApp
+      ComputePlatform: ECS
+      Tags:
+        - Key: Name
+          Value: Lab-CodeDeploy-App
+
+  # CodeDeploy Deployment Group
+  DeploymentGroup:
+    Type: AWS::CodeDeploy::DeploymentGroup
+    DependsOn:
+      - ECSService
+      - ALBListener
+    Properties:
+      ApplicationName: !Ref CodeDeployApp
+      DeploymentGroupName: LabDeploymentGroup
+      ServiceRoleArn: !GetAtt CodeDeployRole.Arn
+      DeploymentConfigName: CodeDeployDefault.ECSBlueGreen
+      BlueGreenDeploymentConfiguration:
+        DeploymentReadyOption:
+          ActionOnTimeout: CONTINUE_DEPLOYMENT
+        TerminateBlueInstancesOnDeploymentSuccess:
+          Action: TERMINATE
+          TerminationWaitTimeInMinutes: 5
+      DeploymentStyle:
+        DeploymentType: BLUE_GREEN
+        DeploymentOption: WITH_TRAFFIC_CONTROL
+      ECSServices:
+        - ClusterName: !Ref ECSCluster
+          ServiceName: !GetAtt ECSService.Name
+      LoadBalancerInfo:
+        TargetGroupPairInfoList:
+          - ProdTrafficRoute:
+              ListenerArns:
+                - !Ref ALBListener
+            TargetGroups:
+              - Name: Lab-TargetGroup-Blue
+              - Name: Lab-TargetGroup-Green
+      AutoRollbackConfiguration:
+        Enabled: true
+        Events:
+          - DEPLOYMENT_FAILURE
+      Tags:
+        - Key: Name
+          Value: Lab-Deployment-Group
+
+  # CodePipeline
   ECSPipeline:
     Type: AWS::CodePipeline::Pipeline
     Properties:
@@ -673,39 +692,23 @@ Resources:
                 RepositoryName: !Ref ECRRepo
               OutputArtifacts:
                 - Name: SourceOutput
-        - Name: Build
-          Actions:
-            - Name: BuildArtifact
-              ActionTypeId:
-                Category: Build
-                Owner: AWS
-                Provider: CodeBuild
-                Version: '1'
-              InputArtifacts:
-                - Name: SourceOutput
-              OutputArtifacts:
-                - Name: BuildOutput
-              Configuration:
-                ProjectName: !Ref CodeBuildProject
         - Name: Deploy
           Actions:
             - Name: DeployToECS
               ActionTypeId:
                 Category: Deploy
                 Owner: AWS
-                Provider: CodeDeploy
+                Provider: CodeDeployToECS
                 Version: '1'
               Configuration:
                 ApplicationName: !Ref CodeDeployApp
                 DeploymentGroupName: !Ref DeploymentGroup
-                TaskDefinitionTemplateArtifact: BuildOutput
+                TaskDefinitionTemplateArtifact: SourceOutput
                 TaskDefinitionTemplatePath: taskdef.json
-                AppSpecTemplateArtifact: BuildOutput
+                AppSpecTemplateArtifact: SourceOutput
                 AppSpecTemplatePath: appspec.yaml
-                Image1ArtifactName: BuildOutput
-                Image1ContainerName: app-container
               InputArtifacts:
-                - Name: BuildOutput
+                - Name: SourceOutput
       Tags:
         - Key: Name
           Value: Lab-Pipeline
