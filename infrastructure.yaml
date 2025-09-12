@@ -638,15 +638,26 @@ Resources:
       ECSServices:
         - ClusterName: !Ref ECSCluster
           ServiceName: LabService
-      LoadBalancerInfo:
-        TargetGroupInfoList:
-          - Name: !Ref ALBTargetGroup
+      # This section is REMOVED because it's configured in the BlueGreenDeploymentConfiguration
+      # LoadBalancerInfo:
+      #   TargetGroupInfoList:
+      #     - Name: !Ref ALBTargetGroup
       BlueGreenDeploymentConfiguration:
         DeploymentReadyOption:
           ActionOnTimeout: CONTINUE_DEPLOYMENT
         TerminateBlueInstancesOnDeploymentSuccess:
           Action: TERMINATE
           TerminationWaitTimeInMinutes: 5
+          LoadBalancerInfo: # This is the CORRECT location for load balancer info
+            TargetGroupInfoList:
+              - TargetGroupPair:
+                  ProdTrafficRoute:
+                    ListenerArns:
+                      - !Ref ALBListener
+                      # No test listener needed for this simple setup
+                  TargetGroups:
+                    - Name: !Ref ALBTargetGroup
+                    - Name: !Ref ALBTargetGroupGreen
       AutoRollbackConfiguration:
         Enabled: true
         Events:
