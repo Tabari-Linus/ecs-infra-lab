@@ -638,20 +638,20 @@ Resources:
       ECSServices:
         - ClusterName: !Ref ECSCluster
           ServiceName: LabService
+      LoadBalancerInfo:  
+        TargetGroupPairInfoList:
+          - ProdTrafficRoute:
+              ListenerArns:
+                - !Ref ALBListener
+            TargetGroups:
+              - Name: !GetAtt ALBTargetGroup.TargetGroupName
+              - Name: !GetAtt ALBTargetGroupGreen.TargetGroupName
       BlueGreenDeploymentConfiguration:
         DeploymentReadyOption:
           ActionOnTimeout: CONTINUE_DEPLOYMENT
         TerminateBlueInstancesOnDeploymentSuccess:
           Action: TERMINATE
           TerminationWaitTimeInMinutes: 5
-        LoadBalancerInfo:
-          TargetGroupPairInfoList:
-            - ProdTrafficRoute:
-                ListenerArns:
-                  - !Ref ALBListener
-              TargetGroups:
-                - Name: !GetAtt ALBTargetGroup.TargetGroupName
-                - Name: !GetAtt ALBTargetGroupGreen.TargetGroupName
       AutoRollbackConfiguration:
         Enabled: true
         Events:
@@ -660,6 +660,7 @@ Resources:
       Tags:
         - Key: Name
           Value: Lab-Deployment-Group
+
 
 
   # CodePipeline
