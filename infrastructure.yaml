@@ -461,6 +461,7 @@ Resources:
   # Auto-Scaling
   ScalableTarget:
     Type: AWS::ApplicationAutoScaling::ScalableTarget
+    DependsOn: ECSService
     Properties:
       MaxCapacity: 10
       MinCapacity: 2
@@ -471,6 +472,7 @@ Resources:
 
   ScalingPolicy:
     Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    DependsOn: ScalableTarget
     Properties:
       PolicyName: CPUHighPolicy
       PolicyType: TargetTrackingScaling
