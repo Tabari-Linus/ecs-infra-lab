@@ -10,7 +10,7 @@ Parameters:
     Default: eu-central-1
 
 Resources:
-  # VPC
+  # VPC 
   ECSVPC:
     Type: AWS::EC2::VPC
     Properties:
