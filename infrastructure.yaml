@@ -483,74 +483,69 @@ Resources:
         BuildSpec: |
           version: 0.2
           phases:
-            install:
-              runtime-versions:
-                python: 3.9
             pre_build:
               commands:
-                - echo "Preparing appspec and updated taskdef"
-                - echo "AWS account $AWS_ACCOUNT_ID, region $AWS_DEFAULT_REGION"
-                - pip install PyYAML
+                - echo "Preparing deployment artifacts..."
             build:
               commands:
-                - IMAGE_URI="$AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/java-app-repo:latest"
-                - echo "Image URI $IMAGE_URI"
+                - IMAGE_URI="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/java-app-repo:latest"
+                - printf '{"ImageURI":"%s"}' $IMAGE_URI > imageDetail.json
                 - |
-                  cat > appspec.yaml << 'EOF'
+                  cat <<EOF > appspec.yaml
                   version: 0.0
                   Resources:
                     - TargetService:
                         Type: AWS::ECS::Service
                         Properties:
-                          TaskDefinition: taskdef.json
+                          TaskDefinition: <TASK_DEFINITION>
                           LoadBalancerInfo:
                             ContainerName: "app-container"
                             ContainerPort: 8080
                   EOF
                 - |
-                  cat > taskdef.json << EOF
+                  cat <<EOF > taskdef.json
                   {
-                    "family": "lab-task",
-                    "networkMode": "awsvpc",
-                    "requiresCompatibilities": ["FARGATE"],
-                    "cpu": "256",
-                    "memory": "512",
-                    "executionRoleArn": "$ECS_EXEC_ROLE_ARN",
-                    "taskRoleArn": "$ECS_TASK_ROLE_ARN",
+                    "executionRoleArn": "${ECS_EXEC_ROLE_ARN}",
+                    "taskRoleArn": "${ECS_TASK_ROLE_ARN}",
                     "containerDefinitions": [
                       {
                         "name": "app-container",
-                        "image": "$IMAGE_URI",
-                        "portMappings": [{"containerPort": 8080}],
+                        "image": "<IMAGE_NAME>",
+                        "portMappings": [
+                          {
+                            "containerPort": 8080,
+                            "protocol": "tcp"
+                          }
+                        ],
                         "logConfiguration": {
                           "logDriver": "awslogs",
                           "options": {
                             "awslogs-group": "/ecs/lab-task",
-                            "awslogs-region": "$AWS_DEFAULT_REGION",
+                            "awslogs-region": "${AWS_DEFAULT_REGION}",
                             "awslogs-stream-prefix": "ecs"
                           }
                         }
                       }
-                    ]
+                    ],
+                    "requiresCompatibilities": [
+                      "FARGATE"
+                    ],
+                    "networkMode": "awsvpc",
+                    "cpu": "256",
+                    "memory": "512",
+                    "family": "lab-task"
                   }
                   EOF
-                - echo "=== Generated appspec.yaml ==="
-                - cat appspec.yaml
-                - echo "=== Generated taskdef.json ==="
-                - cat taskdef.json
-                - echo "=== Validating YAML syntax ==="
-                - python3 -c "import yaml; yaml.safe_load(open('appspec.yaml'))" && echo "AppSpec YAML is valid" || (echo "AppSpec YAML is invalid" && exit 1)
-                - echo "=== Validating JSON syntax ==="
-                - python3 -c "import json; json.load(open('taskdef.json'))" && echo "TaskDef JSON is valid" || (echo "TaskDef JSON is invalid" && exit 1)
           artifacts:
             files:
               - appspec.yaml
               - taskdef.json
+              - imageDetail.json
+            discard-paths: yes
       Environment:
         Type: LINUX_CONTAINER
         ComputeType: BUILD_GENERAL1_SMALL
-        Image: aws/codebuild/standard:5.0
-        PrivilegedMode: false
+        Image: aws/codebuild/standard:6.0
         EnvironmentVariables:
           - Name: AWS_ACCOUNT_ID
             Value: !Ref AWS::AccountId
