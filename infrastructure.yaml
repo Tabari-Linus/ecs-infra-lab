@@ -510,6 +510,24 @@ Resources:
         - Key: Name
           Value: Lab-CodeDeploy-App
 
+  # Custom Deployment Configuration for ECS Blue/Green
+  CustomDeploymentConfig:
+    Type: AWS::CodeDeploy::DeploymentConfig
+    Properties:
+      DeploymentConfigName: LabECSBlueGreenDeploymentConfig
+      ComputePlatform: ECS
+      BlueGreenDeploymentConfiguration:
+        DeploymentReadyOption:
+          ActionOnTimeout: CONTINUE_DEPLOYMENT
+        TerminateBlueInstancesOnDeploymentSuccess:
+          Action: TERMINATE
+          TerminationWaitTimeInMinutes: 5
+        GreenFleetProvisioningOption:
+          Action: COPY_AUTO_SCALING_GROUP
+        BlueInstanceTerminationPolicy:
+          TerminationWaitTimeInMinutes: 5
+          Action: TERMINATE
+
   # IAM Roles for Pipeline and CodeDeploy
   CodeDeployRole:
     Type: AWS::IAM::Role
@@ -627,17 +645,12 @@ Resources:
     DependsOn:
       - ECSService
       - ALBListener
+      - CustomDeploymentConfig
     Properties:
       ApplicationName: !Ref CodeDeployApp
       DeploymentGroupName: LabDeploymentGroup
       ServiceRoleArn: !GetAtt CodeDeployRole.Arn
-      DeploymentConfigName: CodeDeployDefault.ECSBlueGreen
-      BlueGreenDeploymentConfiguration:
-        DeploymentReadyOption:
-          ActionOnTimeout: CONTINUE_DEPLOYMENT
-        TerminateBlueInstancesOnDeploymentSuccess:
-          Action: TERMINATE
-          TerminationWaitTimeInMinutes: 5
+      DeploymentConfigName: !Ref CustomDeploymentConfig
       DeploymentStyle:
         DeploymentType: BLUE_GREEN
         DeploymentOption: WITH_TRAFFIC_CONTROL
@@ -645,13 +658,15 @@ Resources:
         - ClusterName: !Ref ECSCluster
           ServiceName: LabService
       LoadBalancerInfo:
-        TargetGroupPairInfoList:
-          - ProdTrafficRoute:
-              ListenerArns:
-                - !Ref ALBListener
-            TargetGroups:
-              - Name: Lab-TargetGroup-Blue
-              - Name: Lab-TargetGroup-Green
+        TargetGroupInfoList:
+          - Name: !Ref ALBTargetGroup
+          - Name: !Ref ALBTargetGroupGreen
+      BlueGreenDeploymentConfiguration:
+        DeploymentReadyOption:
+          ActionOnTimeout: CONTINUE_DEPLOYMENT
+        TerminateBlueInstancesOnDeploymentSuccess:
+          Action: TERMINATE
+          TerminationWaitTimeInMinutes: 5
       AutoRollbackConfiguration:
         Enabled: true
         Events:
