@@ -516,17 +516,14 @@ Resources:
     Properties:
       DeploymentConfigName: LabECSBlueGreenDeploymentConfig
       ComputePlatform: ECS
-      BlueGreenDeploymentConfiguration:
-        DeploymentReadyOption:
-          ActionOnTimeout: CONTINUE_DEPLOYMENT
-        TerminateBlueInstancesOnDeploymentSuccess:
-          Action: TERMINATE
-          TerminationWaitTimeInMinutes: 5
-        GreenFleetProvisioningOption:
-          Action: COPY_AUTO_SCALING_GROUP
-        BlueInstanceTerminationPolicy:
-          TerminationWaitTimeInMinutes: 5
-          Action: TERMINATE
+      TrafficRoutingConfig:
+        Type: TimeBasedCanary
+        TimeBasedCanary:
+          CanaryInterval: 5
+          CanaryPercentage: 10
+      Tags:
+        - Key: Name
+          Value: Lab-ECS-Canary-Config
 
   # IAM Roles for Pipeline and CodeDeploy
   CodeDeployRole:
@@ -649,7 +646,7 @@ Resources:
       ApplicationName: !Ref CodeDeployApp
       DeploymentGroupName: LabDeploymentGroup
       ServiceRoleArn: !GetAtt CodeDeployRole.Arn
-      DeploymentConfigName: CodeDeployDefault.ECSAllAtOnce
+      DeploymentConfigName: !Ref CustomDeploymentConfig
       DeploymentStyle:
         DeploymentType: BLUE_GREEN
         DeploymentOption: WITH_TRAFFIC_CONTROL
@@ -659,6 +656,7 @@ Resources:
       LoadBalancerInfo:
         TargetGroupInfoList:
           - Name: !Ref ALBTargetGroup
+          - Name: !Ref ALBTargetGroupGreen
       BlueGreenDeploymentConfiguration:
         DeploymentReadyOption:
           ActionOnTimeout: CONTINUE_DEPLOYMENT
