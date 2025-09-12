@@ -294,9 +294,20 @@ Resources:
         - Key: Name
           Value: ECS-Task-Role
 
+  # CloudWatch Log Group (moved earlier to avoid dependencies)
+  ECSLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/lab-task
+      RetentionInDays: 7
+      Tags:
+        - Key: Name
+          Value: ECS-Logs
+
   # Task Definition
   TaskDefinition:
     Type: AWS::ECS::TaskDefinition
+    DependsOn: ECSLogGroup
     Properties:
       Family: lab-task
       NetworkMode: awsvpc
@@ -315,11 +326,71 @@ Resources:
             LogDriver: awslogs
             Options:
               awslogs-group: /ecs/lab-task
-              awslogs-region: eu-central-1
+              awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: ecs
       Tags:
         - Key: Name
           Value: Lab-TaskDef
+
+  # ALB
+  ALB:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: LabALB
+      Subnets:
+        - !Ref PublicSubnet1
+        - !Ref PublicSubnet2
+      SecurityGroups:
+        - !Ref ALBSecurityGroup
+      Scheme: internet-facing
+      Type: application
+      Tags:
+        - Key: Name
+          Value: Lab-ALB
+
+  # Target Groups
+  ALBTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      VpcId: !Ref ECSVPC
+      Name: Lab-TargetGroup-Blue
+      Port: 8080
+      Protocol: HTTP
+      TargetType: ip
+      HealthCheckPath: /
+      HealthCheckIntervalSeconds: 30
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 2
+      Tags:
+        - Key: Name
+          Value: Lab-TG-Blue
+
+  ALBTargetGroupGreen:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      VpcId: !Ref ECSVPC
+      Name: Lab-TargetGroup-Green
+      Port: 8080
+      Protocol: HTTP
+      TargetType: ip
+      HealthCheckPath: /
+      HealthCheckIntervalSeconds: 30
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 2
+      Tags:
+        - Key: Name
+          Value: Lab-TG-Green
+
+  # ALB Listener
+  ALBListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref ALB
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref ALBTargetGroup
 
   # ECS Service
   ECSService:
@@ -351,13 +422,46 @@ Resources:
         - Key: Name
           Value: Lab-Service
 
+  # Auto-Scaling Role
+  AutoScalingRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: application-autoscaling.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSServiceRolePolicy
+      Policies:
+        - PolicyName: AutoScalingPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ecs:DescribeServices
+                  - ecs:UpdateService
+                Resource: !Sub "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:service/${ECSCluster}/LabService"
+              - Effect: Allow
+                Action:
+                  - cloudwatch:PutMetricAlarm
+                  - cloudwatch:DescribeAlarms
+                  - cloudwatch:DeleteAlarms
+                Resource: "*"
+      Tags:
+        - Key: Name
+          Value: AutoScaling-Role
+
   # Auto-Scaling
   ScalableTarget:
     Type: AWS::ApplicationAutoScaling::ScalableTarget
     Properties:
       MaxCapacity: 10
       MinCapacity: 2
-      ResourceId: !Sub "service/${ECSCluster}/${ECSService.Name}"
+      ResourceId: !Sub "service/${ECSCluster}/LabService"
       RoleARN: !GetAtt AutoScalingRole.Arn
       ScalableDimension: ecs:service:DesiredCount
       ServiceNamespace: ecs
@@ -375,100 +479,6 @@ Resources:
         PredefinedMetricSpecification:
           PredefinedMetricType: ECSServiceAverageCPUUtilization
 
-  AutoScalingRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: application-autoscaling.amazonaws.com
-            Action: sts:AssumeRole
-      Policies:
-        - PolicyName: AutoScalingPolicy
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - ecs:DescribeServices
-                  - ecs:UpdateService
-                Resource: !Sub "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:service/${ECSCluster}/${ECSService.Name}"
-              - Effect: Allow
-                Action:
-                  - cloudwatch:PutMetricAlarm
-                  - cloudwatch:DescribeAlarms
-                Resource: "*"
-      Tags:
-        - Key: Name
-          Value: AutoScaling-Role
-
-  # ALB
-  ALB:
-    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
-    Properties:
-      Name: LabALB
-      Subnets:
-        - !Ref PublicSubnet1
-        - !Ref PublicSubnet2
-      SecurityGroups:
-        - !Ref ALBSecurityGroup
-      Scheme: internet-facing
-      Type: application
-      Tags:
-        - Key: Name
-          Value: Lab-ALB
-
-  # Target Groups
-  ALBTargetGroup:
-    Type: AWS::ElasticLoadBalancingV2::TargetGroup
-    DependsOn: ALB
-    Properties:
-      VpcId: !Ref ECSVPC
-      Name: Lab-TargetGroup-Blue
-      Port: 8080
-      Protocol: HTTP
-      TargetType: ip
-      HealthCheckPath: /
-      HealthCheckIntervalSeconds: 30
-      HealthyThresholdCount: 2
-      UnhealthyThresholdCount: 2
-      Tags:
-        - Key: Name
-          Value: Lab-TG-Blue
-
-  ALBTargetGroupGreen:
-    Type: AWS::ElasticLoadBalancingV2::TargetGroup
-    DependsOn: ALB
-    Properties:
-      VpcId: !Ref ECSVPC
-      Name: Lab-TargetGroup-Green
-      Port: 8080
-      Protocol: HTTP
-      TargetType: ip
-      HealthCheckPath: /
-      HealthCheckIntervalSeconds: 30
-      HealthyThresholdCount: 2
-      UnhealthyThresholdCount: 2
-      Tags:
-        - Key: Name
-          Value: Lab-TG-Green
-
-  # ALB Listener
-  ALBListener:
-    Type: AWS::ElasticLoadBalancingV2::Listener
-    DependsOn:
-      - ALB
-      - ALBTargetGroup
-    Properties:
-      LoadBalancerArn: !Ref ALB
-      Port: 80
-      Protocol: HTTP
-      DefaultActions:
-        - Type: forward
-          TargetGroupArn: !Ref ALBTargetGroup
-
   # S3 for Pipeline Artifacts
   ArtifactBucket:
     Type: AWS::S3::Bucket
@@ -485,7 +495,71 @@ Resources:
         - Key: Name
           Value: Lab-Artifacts
 
+  # CodeDeploy Application
+  CodeDeployApp:
+    Type: AWS::CodeDeploy::Application
+    Properties:
+      ApplicationName: LabCodeDeployApp
+      ComputePlatform: ECS
+      Tags:
+        - Key: Name
+          Value: Lab-CodeDeploy-App
+
   # IAM Roles for Pipeline and CodeDeploy
+  CodeDeployRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codedeploy.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AWSCodeDeployRoleForECS
+      Policies:
+        - PolicyName: CodeDeployAdditionalPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ecs:DescribeServices
+                  - ecs:UpdateService
+                  - ecs:RegisterTaskDefinition
+                  - ecs:DescribeTaskDefinition
+                Resource:
+                  - !Sub "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:service/${ECSCluster}/LabService"
+                  - !Sub "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:task-definition/lab-task:*"
+              - Effect: Allow
+                Action:
+                  - elasticloadbalancing:DescribeTargetGroups
+                  - elasticloadbalancing:DescribeListeners
+                  - elasticloadbalancing:ModifyListener
+                  - elasticloadbalancing:DescribeRules
+                  - elasticloadbalancing:ModifyRule
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                Resource: !Sub "arn:aws:s3:::lab-artifact-${AWS::AccountId}-${AWS::Region}/*"
+              - Effect: Allow
+                Action:
+                  - iam:PassRole
+                Resource:
+                  - !GetAtt ECSExecutionRole.Arn
+                  - !GetAtt ECSTaskRole.Arn
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codedeploy/*"
+      Tags:
+        - Key: Name
+          Value: CodeDeploy-Role
+
   CodePipelineRole:
     Type: AWS::IAM::Role
     Properties:
@@ -512,10 +586,12 @@ Resources:
                   - !Sub "arn:aws:s3:::lab-artifact-${AWS::AccountId}-${AWS::Region}/*"
               - Effect: Allow
                 Action:
+                  - ecr:GetAuthorizationToken
                   - ecr:GetDownloadUrlForLayer
                   - ecr:BatchGetImage
                   - ecr:DescribeImages
-                Resource: !Sub "arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/java-app-repo"
+                  - ecr:DescribeRepositories
+                Resource: "*"
               - Effect: Allow
                 Action:
                   - codedeploy:GetApplication
@@ -523,112 +599,22 @@ Resources:
                   - codedeploy:GetDeployment
                   - codedeploy:CreateDeployment
                   - codedeploy:RegisterApplicationRevision
+                  - codedeploy:GetDeploymentConfig
+                  - codedeploy:ListDeployments
                 Resource:
                   - !Sub "arn:aws:codedeploy:${AWS::Region}:${AWS::AccountId}:application:${CodeDeployApp}"
-                  - !Sub "arn:aws:codedeploy:${AWS::Region}:${AWS::AccountId}:deploymentgroup:${CodeDeployApp}/${DeploymentGroup}"
+                  - !Sub "arn:aws:codedeploy:${AWS::Region}:${AWS::AccountId}:deploymentgroup:${CodeDeployApp}/*"
+                  - !Sub "arn:aws:codedeploy:${AWS::Region}:${AWS::AccountId}:deploymentconfig:*"
+                  - !Sub "arn:aws:codedeploy:${AWS::Region}:${AWS::AccountId}:deployment:*"
               - Effect: Allow
                 Action:
                   - ecs:DescribeServices
                   - ecs:UpdateService
-                Resource: !Sub "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:service/${ECSCluster}/${ECSService.Name}"
+                  - ecs:DescribeTaskDefinition
+                Resource: "*"
       Tags:
         - Key: Name
           Value: CodePipeline-Role
-
-  CodeDeployRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: codedeploy.amazonaws.com
-            Action: sts:AssumeRole
-      Policies:
-        - PolicyName: CodeDeployPolicy
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - ecs:DescribeServices
-                  - ecs:UpdateService
-                  - ecs:RegisterTaskDefinition
-                Resource:
-                  - !Sub "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:service/${ECSCluster}/${ECSService.Name}"
-                  - !Sub "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:task-definition/lab-task:*"
-              - Effect: Allow
-                Action:
-                  - elasticloadbalancing:DescribeTargetGroups
-                  - elasticloadbalancing:DescribeListeners
-                  - elasticloadbalancing:ModifyListener
-                Resource: "*"
-              - Effect: Allow
-                Action:
-                  - s3:GetObject
-                Resource: !Sub "arn:aws:s3:::lab-artifact-${AWS::AccountId}-${AWS::Region}/*"
-      Tags:
-        - Key: Name
-          Value: CodeDeploy-Role
-
-  # EventBridge Role and Rule
-  EventBridgeRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: events.amazonaws.com
-            Action: sts:AssumeRole
-      Policies:
-        - PolicyName: TriggerPipeline
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action: codepipeline:StartPipelineExecution
-                Resource: !Sub "arn:aws:codepipeline:${AWS::Region}:${AWS::AccountId}:${ECSPipeline}"
-      Tags:
-        - Key: Name
-          Value: EventBridge-Role
-
-  EventRule:
-    Type: AWS::Events::Rule
-    Properties:
-      Description: Trigger pipeline on ECR image push
-      EventPattern:
-        source:
-          - aws.ecr
-        detail-type:
-          - ECR Image Action
-        detail:
-          action-type:
-            - PUSH
-          repository-name:
-            - !Ref ECRRepo
-          image-tag:
-            - latest
-      State: ENABLED
-      Targets:
-        - Arn: !Sub "arn:aws:codepipeline:${AWS::Region}:${AWS::AccountId}:${ECSPipeline}"
-          RoleArn: !GetAtt EventBridgeRole.Arn
-          Id: PipelineTrigger
-      Tags:
-        - Key: Name
-          Value: ECR-Push-Rule
-
-  # CodeDeploy Application
-  CodeDeployApp:
-    Type: AWS::CodeDeploy::Application
-    Properties:
-      ApplicationName: LabCodeDeployApp
-      ComputePlatform: ECS
-      Tags:
-        - Key: Name
-          Value: Lab-CodeDeploy-App
 
   # CodeDeploy Deployment Group
   DeploymentGroup:
@@ -652,7 +638,7 @@ Resources:
         DeploymentOption: WITH_TRAFFIC_CONTROL
       ECSServices:
         - ClusterName: !Ref ECSCluster
-          ServiceName: !GetAtt ECSService.Name
+          ServiceName: LabService
       LoadBalancerInfo:
         TargetGroupPairInfoList:
           - ProdTrafficRoute:
@@ -665,6 +651,7 @@ Resources:
         Enabled: true
         Events:
           - DEPLOYMENT_FAILURE
+          - DEPLOYMENT_STOP_ON_ALARM
       Tags:
         - Key: Name
           Value: Lab-Deployment-Group
@@ -713,15 +700,54 @@ Resources:
         - Key: Name
           Value: Lab-Pipeline
 
-  # CloudWatch Log Group
-  ECSLogGroup:
-    Type: AWS::Logs::LogGroup
+  # EventBridge Role and Rule
+  EventBridgeRole:
+    Type: AWS::IAM::Role
     Properties:
-      LogGroupName: /ecs/lab-task
-      RetentionInDays: 7
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: TriggerPipeline
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: codepipeline:StartPipelineExecution
+                Resource: !Sub "arn:aws:codepipeline:${AWS::Region}:${AWS::AccountId}:LabPipeline"
       Tags:
         - Key: Name
-          Value: ECS-Logs
+          Value: EventBridge-Role
+
+  EventRule:
+    Type: AWS::Events::Rule
+    DependsOn: ECSPipeline
+    Properties:
+      Description: Trigger pipeline on ECR image push
+      EventPattern:
+        source:
+          - aws.ecr
+        detail-type:
+          - ECR Image Action
+        detail:
+          action-type:
+            - PUSH
+          repository-name:
+            - java-app-repo
+          image-tag:
+            - latest
+      State: ENABLED
+      Targets:
+        - Arn: !Sub "arn:aws:codepipeline:${AWS::Region}:${AWS::AccountId}:LabPipeline"
+          RoleArn: !GetAtt EventBridgeRole.Arn
+          Id: PipelineTrigger
+      Tags:
+        - Key: Name
+          Value: ECR-Push-Rule
 
 Outputs:
   ALBEndpoint:
