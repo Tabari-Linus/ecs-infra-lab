@@ -698,6 +698,12 @@ Resources:
               Configuration:
                 ApplicationName: !Ref CodeDeployApp
                 DeploymentGroupName: !Ref DeploymentGroup
+                TaskDefinitionTemplateArtifact: BuildOutput
+                TaskDefinitionTemplatePath: taskdef.json
+                AppSpecTemplateArtifact: BuildOutput
+                AppSpecTemplatePath: appspec.yaml
+                Image1ArtifactName: BuildOutput
+                Image1ContainerName: app-container
               InputArtifacts:
                 - Name: BuildOutput
       Tags:
