@@ -645,12 +645,11 @@ Resources:
     DependsOn:
       - ECSService
       - ALBListener
-      - CustomDeploymentConfig
     Properties:
       ApplicationName: !Ref CodeDeployApp
       DeploymentGroupName: LabDeploymentGroup
       ServiceRoleArn: !GetAtt CodeDeployRole.Arn
-      DeploymentConfigName: !Ref CustomDeploymentConfig
+      DeploymentConfigName: CodeDeployDefault.ECSAllAtOnce
       DeploymentStyle:
         DeploymentType: BLUE_GREEN
         DeploymentOption: WITH_TRAFFIC_CONTROL
@@ -660,7 +659,6 @@ Resources:
       LoadBalancerInfo:
         TargetGroupInfoList:
           - Name: !Ref ALBTargetGroup
-          - Name: !Ref ALBTargetGroupGreen
       BlueGreenDeploymentConfiguration:
         DeploymentReadyOption:
           ActionOnTimeout: CONTINUE_DEPLOYMENT
