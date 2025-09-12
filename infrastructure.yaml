@@ -433,8 +433,6 @@ Resources:
             Principal:
               Service: application-autoscaling.amazonaws.com
             Action: sts:AssumeRole
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/service-role/AmazonECSServiceRolePolicy
       Policies:
         - PolicyName: AutoScalingPolicy
           PolicyDocument:
@@ -450,6 +448,11 @@ Resources:
                   - cloudwatch:PutMetricAlarm
                   - cloudwatch:DescribeAlarms
                   - cloudwatch:DeleteAlarms
+                  - cloudwatch:PutMetricData
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - application-autoscaling:*
                 Resource: "*"
       Tags:
         - Key: Name
