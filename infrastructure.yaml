@@ -368,7 +368,7 @@ Resources:
       Port: 8080
       Protocol: HTTP
       TargetType: ip
-      HealthCheckPath: /health
+      HealthCheckPath: /
       HealthCheckIntervalSeconds: 30
       HealthyThresholdCount: 2
       UnhealthyThresholdCount: 2
@@ -422,7 +422,7 @@ Resources:
         - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
         - arn:aws:iam::aws:policy/AWSCodeDeployFullAccess
         - arn:aws:iam::aws:policy/AmazonS3FullAccess
-      Policies: # Add a new Policies block for CodeBuild permissions
+      Policies:
         - PolicyName: CodeBuildPermissions
           PolicyDocument:
             Version: '2012-10-17'
@@ -472,7 +472,7 @@ Resources:
         - Key: Name
           Value: CodeBuild-Role
 
-# CodeBuild project: takes ECR source artifact, generates appspec + taskdef and outputs zip artifact
+  # CodeBuild project: FIXED AppSpec generation
   CodeBuildProject:
     Type: AWS::CodeBuild::Project
     Properties:
@@ -483,16 +483,20 @@ Resources:
         BuildSpec: |
           version: 0.2
           phases:
+            install:
+              runtime-versions:
+                python: 3.9
             pre_build:
               commands:
                 - echo "Preparing appspec and updated taskdef"
                 - echo "AWS account $AWS_ACCOUNT_ID, region $AWS_DEFAULT_REGION"
+                - pip install PyYAML
             build:
               commands:
                 - IMAGE_URI="$AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/java-app-repo:latest"
                 - echo "Image URI $IMAGE_URI"
                 - |
-                  cat > appspec.yaml << EOF
+                  cat > appspec.yaml << 'EOF'
                   version: 0.0
                   Resources:
                     - TargetService:
@@ -502,6 +506,12 @@ Resources:
                           LoadBalancerInfo:
                             ContainerName: "app-container"
                             ContainerPort: 8080
+                  Hooks:
+                    - BeforeInstall: "LambdaFunctionToValidateBeforeInstall"
+                    - AfterInstall: "LambdaFunctionToValidateAfterTraffic"
+                    - AfterAllowTestTraffic: "LambdaFunctionToValidateAfterTestTrafficStarts"
+                    - BeforeAllowTraffic: "LambdaFunctionToValidateBeforeAllowingProductionTraffic"
+                    - AfterAllowTraffic: "LambdaFunctionToValidateAfterAllowingProductionTraffic"
                   EOF
                 - |
                   cat > taskdef.json << EOF
@@ -535,7 +545,9 @@ Resources:
                 - echo "=== Generated taskdef.json ==="
                 - cat taskdef.json
                 - echo "=== Validating YAML syntax ==="
-                - python3 -c "import yaml; yaml.safe_load(open('appspec.yaml'))" && echo "AppSpec YAML is valid" || echo "AppSpec YAML is invalid"
+                - python3 -c "import yaml; yaml.safe_load(open('appspec.yaml'))" && echo "AppSpec YAML is valid" || (echo "AppSpec YAML is invalid" && exit 1)
+                - echo "=== Validating JSON syntax ==="
+                - python3 -c "import json; json.load(open('taskdef.json'))" && echo "TaskDef JSON is valid" || (echo "TaskDef JSON is invalid" && exit 1)
           artifacts:
             files:
               - appspec.yaml
@@ -543,7 +555,7 @@ Resources:
       Environment:
         Type: LINUX_CONTAINER
         ComputeType: BUILD_GENERAL1_SMALL
-        Image: aws/codebuild/standard:6.0
+        Image: aws/codebuild/standard:5.0
         PrivilegedMode: false
         EnvironmentVariables:
           - Name: AWS_ACCOUNT_ID
@@ -649,7 +661,7 @@ Resources:
         - Key: Name
           Value: ECR-Push-Rule
 
-# CodePipeline: Source = ECR, Build = CodeBuild (new), Deploy = CodeDeploy
+  # CodePipeline: Source = ECR, Build = CodeBuild (new), Deploy = CodeDeploy
   ECSPipeline:
     Type: AWS::CodePipeline::Pipeline
     Properties:
@@ -698,7 +710,7 @@ Resources:
                 ApplicationName: !Ref CodeDeployApp
                 DeploymentGroupName: !Ref DeploymentGroup
               InputArtifacts:
-                - Name: BuildOutput # This is the single zip artifact containing both files.
+                - Name: BuildOutput
       Tags:
         - Key: Name
           Value: Lab-Pipeline
