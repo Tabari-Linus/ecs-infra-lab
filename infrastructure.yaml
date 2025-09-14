@@ -4,7 +4,8 @@ Description: 'ECS CI/CD Lab Infrastructure in eu-central-1 with HA NAT Gateways 
 Parameters:
   CodeStarConnectionArn:
     Type: String
-    Description: ARN of the CodeStar connection to GitHub (create this manually first)
+    Default: "arn:aws:codestar-connections:eu-central-1:123456789012:connection/REPLACE-WITH-YOUR-CONNECTION-ID"
+    Description: ARN of the CodeStar connection to GitHub (replace the default with your actual connection ARN)
   
   GitHubRepoFullName:
     Type: String
@@ -786,5 +787,5 @@ Outputs:
     Description: CodePipeline name
     Value: !Ref ECSPipeline
   CodeStarConnectionNote:
-    Description: Remember to manually complete the CodeStar connection setup
-    Value: "Go to CodePipeline -> Settings -> Connections to complete the GitHub connection setup"
+    Description: Remember to create the SSM parameter with your CodeStar connection ARN
+    Value: "Create parameter: aws ssm put-parameter --name '/ecs-lab/codestar-connection-arn' --value 'your-connection-arn' --type String"
