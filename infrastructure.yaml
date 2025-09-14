@@ -676,7 +676,7 @@ Resources:
         - Key: Name
           Value: Lab-Deployment-Group
 
-  # CodePipeline (Updated to use CodeStar Connections)
+  # CodePipeline (Fixed - removed invalid Image configuration)
   ECSPipeline:
     Type: AWS::CodePipeline::Pipeline
     Properties:
@@ -716,10 +716,6 @@ Resources:
                 TaskDefinitionTemplatePath: taskdef.json
                 AppSpecTemplateArtifact: SourceOutput
                 AppSpecTemplatePath: appspec.yaml
-                Image1ArtifactName: SourceOutput
-                Image1ContainerName: app-container
-                Image1ContainerURI: !Sub "${AWS::AccountId}.dkr.ecr.eu-central-1.amazonaws.com/java-app-repo"
-                Image1Tag: latest
               InputArtifacts:
                 - Name: SourceOutput
       Tags:
