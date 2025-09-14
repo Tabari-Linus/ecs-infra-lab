@@ -735,6 +735,8 @@ Resources:
                 TaskDefinitionTemplatePath: taskdef.json
                 AppSpecTemplateArtifact: SourceOutput
                 AppSpecTemplatePath: appspec.yaml
+                Image1ArtifactName: SourceOutput
+                Image1ImageURI: !Sub "${AWS::AccountId}.dkr.ecr.eu-central-1.amazonaws.com/java-app-repo:latest"
               InputArtifacts:
                 - Name: SourceOutput
       Tags:
