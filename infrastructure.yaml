@@ -619,6 +619,7 @@ Resources:
               - Effect: Allow
                 Action:
                   - codedeploy:GetApplication
+                  - codedeploy:GetApplicationRevision
                   - codedeploy:GetDeploymentGroup
                   - codedeploy:GetDeployment
                   - codedeploy:CreateDeployment
