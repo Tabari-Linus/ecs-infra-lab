@@ -4,7 +4,7 @@ Description: 'ECS CI/CD Lab Infrastructure in eu-central-1 with HA NAT Gateways 
 Parameters:
   CodeStarConnectionArn:
     Type: String
-    Default: "arn:aws:codestar-connections:eu-central-1:123456789012:connection/REPLACE-WITH-YOUR-CONNECTION-ID"
+    Default: "arn:aws:codestar-connections:eu-central-1:329599647651:connection/9557a93f-ba56-4ce9-885b-b24ed5fd1ed0"
     Description: ARN of the CodeStar connection to GitHub (replace the default with your actual connection ARN)
   
   GitHubRepoFullName:
