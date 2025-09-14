@@ -718,6 +718,8 @@ Resources:
                 AppSpecTemplatePath: appspec.yaml
                 Image1ArtifactName: SourceOutput
                 Image1ContainerName: app-container
+                Image1ContainerURI: !Sub "${AWS::AccountId}.dkr.ecr.eu-central-1.amazonaws.com/java-app-repo"
+                Image1Tag: latest
               InputArtifacts:
                 - Name: SourceOutput
       Tags:
