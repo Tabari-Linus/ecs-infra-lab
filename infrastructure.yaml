@@ -2,6 +2,11 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: 'ECS CI/CD Lab Infrastructure in eu-central-1 with HA NAT Gateways and Configurable CIDRs'
 
 Parameters:
+
+  GitHubToken:
+    Type: String
+    NoEcho: true
+    Description: GitHub OAuth Token for CodePipeline access
   VpcCidr:
     Type: String
     Default: 10.0.0.0/16
@@ -675,15 +680,17 @@ Resources:
       Stages:
         - Name: Source
           Actions:
-            - Name: ECRSource
+            - Name: GitHubSource
               ActionTypeId:
                 Category: Source
-                Owner: AWS
-                Provider: ECR
+                Owner: ThirdParty
+                Provider: GitHub
                 Version: '1'
               Configuration:
-                ImageTag: latest
-                RepositoryName: !Ref ECRRepo
+                Owner: Tabari_Linus
+                Repo: java-web-app-lab
+                Branch: main
+                OAuthToken: !Ref GitHubToken
               OutputArtifacts:
                 - Name: SourceOutput
         - Name: Deploy
@@ -701,6 +708,8 @@ Resources:
                 TaskDefinitionTemplatePath: taskdef.json
                 AppSpecTemplateArtifact: SourceOutput
                 AppSpecTemplatePath: appspec.yaml
+                Image1ArtifactName: SourceOutput
+                Image1ContainerName: app-container
               InputArtifacts:
                 - Name: SourceOutput
       Tags:
