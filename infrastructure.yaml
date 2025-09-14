@@ -2,7 +2,6 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: 'ECS CI/CD Lab Infrastructure in eu-central-1 with HA NAT Gateways and Configurable CIDRs'
 
 Parameters:
-  # Removed GitHubToken parameter and added CodeStar connection
   CodeStarConnectionArn:
     Type: String
     Description: ARN of the CodeStar connection to GitHub (create this manually first)
@@ -728,7 +727,6 @@ Resources:
         - Key: Name
           Value: Lab-Pipeline
 
-  # EventBridge Role and Rule (Updated for CodeStar connections)
   EventBridgeRole:
     Type: AWS::IAM::Role
     Properties:
