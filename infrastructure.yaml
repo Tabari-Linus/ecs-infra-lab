@@ -2,11 +2,21 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: 'ECS CI/CD Lab Infrastructure in eu-central-1 with HA NAT Gateways and Configurable CIDRs'
 
 Parameters:
-
-  GitHubToken:
+  # Removed GitHubToken parameter and added CodeStar connection
+  CodeStarConnectionArn:
     Type: String
-    NoEcho: true
-    Description: GitHub OAuth Token for CodePipeline access
+    Description: ARN of the CodeStar connection to GitHub (create this manually first)
+  
+  GitHubRepoFullName:
+    Type: String
+    Default: Tabari_Linus/java-web-app-lab
+    Description: Full name of the GitHub repository (owner/repo)
+  
+  GitHubBranch:
+    Type: String
+    Default: main
+    Description: GitHub branch to monitor
+    
   VpcCidr:
     Type: String
     Default: 10.0.0.0/16
@@ -596,6 +606,10 @@ Resources:
                   - !Sub "arn:aws:s3:::lab-artifact-${AWS::AccountId}-${AWS::Region}/*"
               - Effect: Allow
                 Action:
+                  - codestar-connections:UseConnection
+                Resource: !Ref CodeStarConnectionArn
+              - Effect: Allow
+                Action:
                   - ecr:GetAuthorizationToken
                   - ecr:GetDownloadUrlForLayer
                   - ecr:BatchGetImage
@@ -666,9 +680,7 @@ Resources:
         - Key: Name
           Value: Lab-Deployment-Group
 
-
-
-  # CodePipeline
+  # CodePipeline (Updated to use CodeStar Connections)
   ECSPipeline:
     Type: AWS::CodePipeline::Pipeline
     Properties:
@@ -683,14 +695,14 @@ Resources:
             - Name: GitHubSource
               ActionTypeId:
                 Category: Source
-                Owner: ThirdParty
-                Provider: GitHub
+                Owner: AWS
+                Provider: CodeStarSourceConnection
                 Version: '1'
               Configuration:
-                Owner: Tabari_Linus
-                Repo: java-web-app-lab
-                Branch: main
-                OAuthToken: !Ref GitHubToken
+                ConnectionArn: !Ref CodeStarConnectionArn
+                FullRepositoryId: !Ref GitHubRepoFullName
+                BranchName: !Ref GitHubBranch
+                OutputArtifactFormat: CODE_ZIP
               OutputArtifacts:
                 - Name: SourceOutput
         - Name: Deploy
@@ -716,7 +728,7 @@ Resources:
         - Key: Name
           Value: Lab-Pipeline
 
-  # EventBridge Role and Rule
+  # EventBridge Role and Rule (Updated for CodeStar connections)
   EventBridgeRole:
     Type: AWS::IAM::Role
     Properties:
@@ -775,3 +787,6 @@ Outputs:
   PipelineName:
     Description: CodePipeline name
     Value: !Ref ECSPipeline
+  CodeStarConnectionNote:
+    Description: Remember to manually complete the CodeStar connection setup
+    Value: "Go to CodePipeline -> Settings -> Connections to complete the GitHub connection setup"
