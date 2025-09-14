@@ -631,6 +631,7 @@ Resources:
                   - ecs:DescribeServices
                   - ecs:UpdateService
                   - ecs:DescribeTaskDefinition
+                  - ecs:RegisterTaskDefinition
                 Resource: "*"
       Tags:
         - Key: Name
