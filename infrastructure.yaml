@@ -372,7 +372,8 @@ Resources:
       Protocol: HTTP
       TargetType: ip
       HealthCheckPath: /
-      HealthCheckIntervalSeconds: 30
+      HealthCheckIntervalSeconds: 60
+      HealthCheckGracePeriodSeconds: 300
       HealthCheckTimeoutSeconds: 10
       HealthyThresholdCount: 2
       UnhealthyThresholdCount: 5
@@ -392,7 +393,8 @@ Resources:
       Protocol: HTTP
       TargetType: ip
       HealthCheckPath: /
-      HealthCheckIntervalSeconds: 30
+      HealthCheckIntervalSeconds: 60
+      HealthCheckGracePeriodSeconds: 300
       HealthyThresholdCount: 10
       UnhealthyThresholdCount: 2
       HealthCheckTimeoutSeconds: 5
