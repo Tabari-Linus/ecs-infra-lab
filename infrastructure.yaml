@@ -2,14 +2,10 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: 'ECS CI/CD Lab Infrastructure in eu-central-1 with HA NAT Gateways and Configurable CIDRs'
 
 Parameters:
-  CodeStarConnectionArn:
-    Type: String
-    Default: "arn:aws:codestar-connections:eu-central-1:329599647651:connection/9557a93f-ba56-4ce9-885b-b24ed5fd1ed0"
-    Description: ARN of the CodeStar connection to GitHub (replace the default with your actual connection ARN)
   
   GitHubRepoFullName:
     Type: String
-    Default: Tabari_Linus/java-web-app-lab
+    Default: Tabari-Linus/java-web-app-lab
     Description: Full name of the GitHub repository (owner/repo)
   
   GitHubBranch:
@@ -607,7 +603,7 @@ Resources:
               - Effect: Allow
                 Action:
                   - codestar-connections:UseConnection
-                Resource: !Ref CodeStarConnectionArn
+                Resource: !Sub "arn:aws:codestar-connections:eu-central-1:329599647651:connection/9557a93f-ba56-4ce9-885b-b24ed5fd1ed0"
               - Effect: Allow
                 Action:
                   - ecr:GetAuthorizationToken
@@ -699,7 +695,7 @@ Resources:
                 Provider: CodeStarSourceConnection
                 Version: '1'
               Configuration:
-                ConnectionArn: !Ref CodeStarConnectionArn
+                ConnectionArn: "{{resolve:ssm:ecs-lab-codestar-connection-arn}}"
                 FullRepositoryId: !Ref GitHubRepoFullName
                 BranchName: !Ref GitHubBranch
                 OutputArtifactFormat: CODE_ZIP
