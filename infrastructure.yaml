@@ -372,9 +372,13 @@ Resources:
       Protocol: HTTP
       TargetType: ip
       HealthCheckPath: /
-      HealthCheckIntervalSeconds: 15
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 10
       HealthyThresholdCount: 2
-      UnhealthyThresholdCount: 2
+      UnhealthyThresholdCount: 5
+      HealthCheckEnabled: true
+      Matcher:
+        HttpCode: '200'
       Tags:
         - Key: Name
           Value: Lab-TG-Blue
@@ -388,8 +392,8 @@ Resources:
       Protocol: HTTP
       TargetType: ip
       HealthCheckPath: /
-      HealthCheckIntervalSeconds: 15
-      HealthyThresholdCount: 2
+      HealthCheckIntervalSeconds: 30
+      HealthyThresholdCount: 10
       UnhealthyThresholdCount: 2
       HealthCheckTimeoutSeconds: 5
       HealthCheckEnabled: true
