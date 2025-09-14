@@ -234,11 +234,13 @@ Resources:
           FromPort: 8080
           ToPort: 8080
           SourceSecurityGroupId: !Ref ALBSecurityGroup
+          Description: Allow ALB to ECS
       Egress:
         - IpProtocol: -1
-          FromPort: 0
-          ToPort: 65535
+          FromPort: -1
+          ToPort: -1
           CidrIp: 0.0.0.0/0
+          Description: Allow all outbound traffic
       Tags:
         - Key: Name
           Value: ECS-SG
@@ -336,6 +338,12 @@ Resources:
           Image: !Sub "${AWS::AccountId}.dkr.ecr.eu-central-1.amazonaws.com/java-app-repo:latest"
           PortMappings:
             - ContainerPort: 8080
+          HealthCheck:
+            Command: ["CMD-SHELL", "curl -f http://localhost:8080/ || exit 1"]
+            Interval: 30
+            Timeout: 5
+            Retries: 3
+            StartPeriod: 60
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -372,7 +380,7 @@ Resources:
       Protocol: HTTP
       TargetType: ip
       HealthCheckPath: /
-      HealthCheckIntervalSeconds: 30
+      HealthCheckIntervalSeconds: 15
       HealthyThresholdCount: 2
       UnhealthyThresholdCount: 2
       Tags:
@@ -388,9 +396,13 @@ Resources:
       Protocol: HTTP
       TargetType: ip
       HealthCheckPath: /
-      HealthCheckIntervalSeconds: 30
+      HealthCheckIntervalSeconds: 15
       HealthyThresholdCount: 2
       UnhealthyThresholdCount: 2
+      HealthCheckTimeoutSeconds: 5
+      HealthCheckEnabled: true
+      Matcher:
+        HttpCode: '200'
       Tags:
         - Key: Name
           Value: Lab-TG-Green
@@ -679,6 +691,7 @@ Resources:
       BlueGreenDeploymentConfiguration:
         DeploymentReadyOption:
           ActionOnTimeout: CONTINUE_DEPLOYMENT
+          WaitTimeInMinutes: 10
         TerminateBlueInstancesOnDeploymentSuccess:
           Action: TERMINATE
           TerminationWaitTimeInMinutes: 5
