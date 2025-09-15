@@ -373,8 +373,7 @@ Resources:
       TargetType: ip
       HealthCheckPath: /
       HealthCheckIntervalSeconds: 60
-      HealthCheckGracePeriodSeconds: 300
-      HealthCheckTimeoutSeconds: 10
+      HealthCheckTimeoutSeconds: 20
       HealthyThresholdCount: 2
       UnhealthyThresholdCount: 5
       HealthCheckEnabled: true
@@ -394,8 +393,7 @@ Resources:
       TargetType: ip
       HealthCheckPath: /
       HealthCheckIntervalSeconds: 60
-      HealthCheckGracePeriodSeconds: 300
-      HealthyThresholdCount: 10
+      HealthyThresholdCount: 20
       UnhealthyThresholdCount: 2
       HealthCheckTimeoutSeconds: 5
       HealthCheckEnabled: true
