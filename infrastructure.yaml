@@ -362,7 +362,7 @@ Resources:
         - Key: Name
           Value: Lab-ALB
 
-  # Target Groups
+  # Target Groups - FIXED: Better health check settings
   ALBTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
@@ -371,11 +371,11 @@ Resources:
       Port: 8080
       Protocol: HTTP
       TargetType: ip
-      HealthCheckPath: /
-      HealthCheckIntervalSeconds: 60
-      HealthCheckTimeoutSeconds: 10
+      HealthCheckPath: /health
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 5
       HealthyThresholdCount: 2
-      UnhealthyThresholdCount: 5
+      UnhealthyThresholdCount: 3
       HealthCheckEnabled: true
       Matcher:
         HttpCode: '200'
@@ -391,11 +391,11 @@ Resources:
       Port: 8080
       Protocol: HTTP
       TargetType: ip
-      HealthCheckPath: /
-      HealthCheckIntervalSeconds: 60
-      HealthyThresholdCount: 10
-      UnhealthyThresholdCount: 2
+      HealthCheckPath: /health
+      HealthCheckIntervalSeconds: 30
       HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
       HealthCheckEnabled: true
       Matcher:
         HttpCode: '200'
@@ -414,7 +414,7 @@ Resources:
         - Type: forward
           TargetGroupArn: !Ref ALBTargetGroup
 
-  # ECS Service
+  # ECS Service - FIXED: Removed DeploymentController for initial deployment
   ECSService:
     Type: AWS::ECS::Service
     DependsOn:
@@ -438,8 +438,10 @@ Resources:
         - ContainerName: app-container
           ContainerPort: 8080
           TargetGroupArn: !Ref ALBTargetGroup
-      DeploymentController:
-        Type: CODE_DEPLOY
+      # Deployment configuration for better stability
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 100
       Tags:
         - Key: Name
           Value: Lab-Service
@@ -532,7 +534,7 @@ Resources:
         - Key: Name
           Value: Lab-CodeDeploy-App
 
-  # IAM Roles for Pipeline and CodeDeploy
+  # IAM Roles for Pipeline and CodeDeploy - ENHANCED
   CodeDeployRole:
     Type: AWS::IAM::Role
     Properties:
@@ -556,9 +558,11 @@ Resources:
                   - ecs:UpdateService
                   - ecs:RegisterTaskDefinition
                   - ecs:DescribeTaskDefinition
-                Resource:
-                  - !Sub "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:service/${ECSCluster}/LabService"
-                  - !Sub "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:task-definition/lab-task:*"
+                  - ecs:DescribeTasks
+                  - ecs:ListTasks
+                  - ecs:DescribeContainerInstances
+                  - ecs:CreateService
+                Resource: "*"
               - Effect: Allow
                 Action:
                   - elasticloadbalancing:DescribeTargetGroups
@@ -566,6 +570,7 @@ Resources:
                   - elasticloadbalancing:ModifyListener
                   - elasticloadbalancing:DescribeRules
                   - elasticloadbalancing:ModifyRule
+                  - elasticloadbalancing:DescribeLoadBalancers
                 Resource: "*"
               - Effect: Allow
                 Action:
@@ -582,7 +587,17 @@ Resources:
                   - logs:CreateLogGroup
                   - logs:CreateLogStream
                   - logs:PutLogEvents
-                Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codedeploy/*"
+                  - logs:DescribeLogGroups
+                  - logs:DescribeLogStreams
+                Resource: "*"
+              # CloudWatch Events permissions
+              - Effect: Allow
+                Action:
+                  - events:PutEvents
+                  - cloudwatch:PutMetricData
+                  - cloudwatch:GetMetricStatistics
+                  - cloudwatch:ListMetrics
+                Resource: "*"
       Tags:
         - Key: Name
           Value: CodeDeploy-Role
@@ -634,17 +649,15 @@ Resources:
                   - codedeploy:RegisterApplicationRevision
                   - codedeploy:GetDeploymentConfig
                   - codedeploy:ListDeployments
-                Resource:
-                  - !Sub "arn:aws:codedeploy:${AWS::Region}:${AWS::AccountId}:application:${CodeDeployApp}"
-                  - !Sub "arn:aws:codedeploy:${AWS::Region}:${AWS::AccountId}:deploymentgroup:${CodeDeployApp}/*"
-                  - !Sub "arn:aws:codedeploy:${AWS::Region}:${AWS::AccountId}:deploymentconfig:*"
-                  - !Sub "arn:aws:codedeploy:${AWS::Region}:${AWS::AccountId}:deployment:*"
+                  - codedeploy:StopDeployment
+                Resource: "*"
               - Effect: Allow
                 Action:
                   - ecs:DescribeServices
                   - ecs:UpdateService
                   - ecs:DescribeTaskDefinition
                   - ecs:RegisterTaskDefinition
+                  - ecs:DescribeClusters
                 Resource: "*"
               # FIXED: Added explicit PassRole permissions for the ECS roles
               - Effect: Allow
@@ -659,7 +672,7 @@ Resources:
         - Key: Name
           Value: CodePipeline-Role
 
-  # CodeDeploy Deployment Group
+  # CodeDeploy Deployment Group - FIXED: Better configuration
   DeploymentGroup:
     Type: AWS::CodeDeploy::DeploymentGroup
     DependsOn:
@@ -669,7 +682,8 @@ Resources:
       ApplicationName: !Ref CodeDeployApp
       DeploymentGroupName: LabDeploymentGroup
       ServiceRoleArn: !GetAtt CodeDeployRole.Arn
-      DeploymentConfigName: CodeDeployDefault.ECSAllAtOnce
+      # FIXED: Using a more conservative deployment config
+      DeploymentConfigName: CodeDeployDefault.ECSLinear10PercentEvery1Minutes
       DeploymentStyle:
         DeploymentType: BLUE_GREEN
         DeploymentOption: WITH_TRAFFIC_CONTROL
@@ -687,6 +701,8 @@ Resources:
       BlueGreenDeploymentConfiguration:
         DeploymentReadyOption:
           ActionOnTimeout: CONTINUE_DEPLOYMENT
+          # Increased wait time for health checks
+          WaitTimeInMinutes: 10
         TerminateBlueInstancesOnDeploymentSuccess:
           Action: TERMINATE
           TerminationWaitTimeInMinutes: 5
