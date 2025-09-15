@@ -414,7 +414,7 @@ Resources:
         - Type: forward
           TargetGroupArn: !Ref ALBTargetGroup
 
-  # ECS Service - FIXED: Removed DeploymentController for initial deployment
+  # FIXED: ECS Service with CODE_DEPLOY deployment controller
   ECSService:
     Type: AWS::ECS::Service
     DependsOn:
@@ -438,10 +438,9 @@ Resources:
         - ContainerName: app-container
           ContainerPort: 8080
           TargetGroupArn: !Ref ALBTargetGroup
-      # Deployment configuration for better stability
-      DeploymentConfiguration:
-        MaximumPercent: 200
-        MinimumHealthyPercent: 100
+      # CRITICAL FIX: Added CODE_DEPLOY deployment controller
+      DeploymentController:
+        Type: CODE_DEPLOY
       Tags:
         - Key: Name
           Value: Lab-Service
