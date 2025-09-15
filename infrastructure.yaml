@@ -700,8 +700,6 @@ Resources:
       BlueGreenDeploymentConfiguration:
         DeploymentReadyOption:
           ActionOnTimeout: CONTINUE_DEPLOYMENT
-          # Increased wait time for health checks
-          WaitTimeInMinutes: 10
         TerminateBlueInstancesOnDeploymentSuccess:
           Action: TERMINATE
           TerminationWaitTimeInMinutes: 5
