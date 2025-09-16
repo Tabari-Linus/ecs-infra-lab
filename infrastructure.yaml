@@ -308,7 +308,7 @@ Resources:
         - Key: Name
           Value: ECS-Task-Role
 
-  # CloudWatch Log Group (moved earlier to avoid dependencies)
+ 
   ECSLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -362,7 +362,7 @@ Resources:
         - Key: Name
           Value: Lab-ALB
 
-  # Target Groups - FIXED: Better health check settings
+  
   ALBTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
@@ -414,7 +414,7 @@ Resources:
         - Type: forward
           TargetGroupArn: !Ref ALBTargetGroup
 
-  # FIXED: ECS Service with CODE_DEPLOY deployment controller
+ 
   ECSService:
     Type: AWS::ECS::Service
     DependsOn:
@@ -532,7 +532,7 @@ Resources:
         - Key: Name
           Value: Lab-CodeDeploy-App
 
-  # IAM Roles for Pipeline and CodeDeploy - ENHANCED
+  
   CodeDeployRole:
     Type: AWS::IAM::Role
     Properties:
@@ -676,7 +676,7 @@ Resources:
       ApplicationName: !Ref CodeDeployApp
       DeploymentGroupName: LabDeploymentGroup
       ServiceRoleArn: !GetAtt CodeDeployRole.Arn
-      DeploymentConfigName: CodeDeployDefault.ECSLinear10PercentEvery1Minutes
+      DeploymentConfigName: CodeDeployDefault.ECSAllAtOnce
       DeploymentStyle:
         DeploymentType: BLUE_GREEN
         DeploymentOption: WITH_TRAFFIC_CONTROL
