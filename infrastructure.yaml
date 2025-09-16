@@ -424,7 +424,7 @@ Resources:
       Cluster: !Ref ECSCluster
       ServiceName: LabService
       TaskDefinition: !Ref TaskDefinition
-      DesiredCount: 2
+      DesiredCount: 1
       LaunchType: FARGATE
       NetworkConfiguration:
         AwsvpcConfiguration:
