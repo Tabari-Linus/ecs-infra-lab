@@ -438,7 +438,6 @@ Resources:
         - ContainerName: app-container
           ContainerPort: 8080
           TargetGroupArn: !Ref ALBTargetGroup
-      # CRITICAL FIX: Added CODE_DEPLOY deployment controller
       DeploymentController:
         Type: CODE_DEPLOY
       Tags:
@@ -589,7 +588,6 @@ Resources:
                   - logs:DescribeLogGroups
                   - logs:DescribeLogStreams
                 Resource: "*"
-              # CloudWatch Events permissions
               - Effect: Allow
                 Action:
                   - events:PutEvents
@@ -601,7 +599,6 @@ Resources:
         - Key: Name
           Value: CodeDeploy-Role
 
-  # FIXED: CodePipeline Role with proper IAM permissions
   CodePipelineRole:
     Type: AWS::IAM::Role
     Properties:
@@ -658,7 +655,6 @@ Resources:
                   - ecs:RegisterTaskDefinition
                   - ecs:DescribeClusters
                 Resource: "*"
-              # FIXED: Added explicit PassRole permissions for the ECS roles
               - Effect: Allow
                 Action:
                   - iam:PassRole
@@ -671,7 +667,6 @@ Resources:
         - Key: Name
           Value: CodePipeline-Role
 
-  # CodeDeploy Deployment Group - FIXED: Better configuration
   DeploymentGroup:
     Type: AWS::CodeDeploy::DeploymentGroup
     DependsOn:
@@ -681,7 +676,6 @@ Resources:
       ApplicationName: !Ref CodeDeployApp
       DeploymentGroupName: LabDeploymentGroup
       ServiceRoleArn: !GetAtt CodeDeployRole.Arn
-      # FIXED: Using a more conservative deployment config
       DeploymentConfigName: CodeDeployDefault.ECSLinear10PercentEvery1Minutes
       DeploymentStyle:
         DeploymentType: BLUE_GREEN
@@ -702,7 +696,7 @@ Resources:
           ActionOnTimeout: CONTINUE_DEPLOYMENT
         TerminateBlueInstancesOnDeploymentSuccess:
           Action: TERMINATE
-          TerminationWaitTimeInMinutes: 2
+          TerminationWaitTimeInMinutes: 5
       AutoRollbackConfiguration:
         Enabled: true
         Events:
@@ -712,7 +706,6 @@ Resources:
         - Key: Name
           Value: Lab-Deployment-Group
 
-  # CodePipeline (Fixed - removed invalid Image configuration)
   ECSPipeline:
     Type: AWS::CodePipeline::Pipeline
     Properties:
