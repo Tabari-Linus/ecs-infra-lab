@@ -264,7 +264,7 @@ Resources:
         - Key: Name
           Value: Lab-Cluster
 
-  # Fixed ECS Execution Role with predictable name
+
   ECSExecutionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -282,7 +282,7 @@ Resources:
         - Key: Name
           Value: ECS-Execution-Role
 
-  # Fixed ECS Task Role with predictable name
+
   ECSTaskRole:
     Type: AWS::IAM::Role
     Properties:
@@ -702,7 +702,7 @@ Resources:
           ActionOnTimeout: CONTINUE_DEPLOYMENT
         TerminateBlueInstancesOnDeploymentSuccess:
           Action: TERMINATE
-          TerminationWaitTimeInMinutes: 5
+          TerminationWaitTimeInMinutes: 2
       AutoRollbackConfiguration:
         Enabled: true
         Events:
