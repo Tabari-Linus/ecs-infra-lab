@@ -39,8 +39,8 @@ Parameters:
     Default: 10.0.4.0/24
     Description: CIDR block for Private Subnet 2
 
-  Conditions:
-    ShouldCreateOIDCProvider: !Equals [!Ref CreateOIDCProvider, 'true']
+Conditions:
+  ShouldCreateOIDCProvider: !Equals [!Ref CreateOIDCProvider, 'true']
 
 Resources:
   # VPC
