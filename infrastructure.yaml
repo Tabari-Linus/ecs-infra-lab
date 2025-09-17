@@ -11,6 +11,12 @@ Parameters:
     Type: String
     Default: main
     Description: GitHub branch to monitor
+
+  CreateOIDCProvider:
+    Type: String
+    Default: 'false'
+    AllowedValues: ['true', 'false']
+    Description: Create OIDC Provider (set to false if it already exists)
     
   VpcCidr:
     Type: String
@@ -32,6 +38,9 @@ Parameters:
     Type: String
     Default: 10.0.4.0/24
     Description: CIDR block for Private Subnet 2
+
+  Conditions:
+    ShouldCreateOIDCProvider: !Equals [!Ref CreateOIDCProvider, 'true']
 
 Resources:
   # VPC
@@ -670,6 +679,7 @@ Resources:
   # Add this after the existing IAM roles (like CodePipelineRole)
   GitHubOIDCProvider:
     Type: AWS::IAM::OIDCProvider
+    Condition: ShouldCreateOIDCProvider
     Properties:
       Url: https://token.actions.githubusercontent.com
       ClientIdList: 
@@ -880,7 +890,7 @@ Outputs:
     Value: !GetAtt ECSTaskRole.Arn
     Export:
       Name: !Sub "${AWS::StackName}-ECSTaskRoleArn"
-      
+
   GitHubOIDCRoleArn:
     Description: ARN of the GitHub OIDC Role for GitHub Actions
     Value: !GetAtt GitHubOIDCRole.Arn
