@@ -723,7 +723,7 @@ Resources:
                   - ecr:InitiateLayerUpload
                   - ecr:UploadLayerPart
                   - ecr:CompleteLayerUpload
-                Resource: !GetAtt ECRRepo.Arn
+                Resource: "*"
               - Effect: Allow
                 Action:
                   - iam:PassRole
