@@ -806,6 +806,7 @@ Resources:
                 Owner: AWS
                 Provider: CodeDeployToECS
                 Version: '1'
+              RoleArn: !GetAtt CodePipelineRole.Arn
               Configuration:
                 ApplicationName: !Ref CodeDeployApp
                 DeploymentGroupName: !Ref DeploymentGroup
