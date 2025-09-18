@@ -635,7 +635,7 @@ Resources:
               - Effect: Allow
                 Action:
                   - codestar-connections:UseConnection
-                Resource: !Sub "arn:aws:codestar-connections:eu-central-1:${AWS::AccountId}:connection/9557a93f-ba56-4ce9-885b-b24ed5fd1ed0"
+                Resource: !Sub "{{resolve:ssm:ecs-lab-codestar-connection-arn}}"
               - Effect: Allow
                 Action:
                   - ecr:GetAuthorizationToken
